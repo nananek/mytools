@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick PDF Merger</title>
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; background: #f4f7f9; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { font-size: 1.5rem; color: #333; text-align: center; }
+        .drop-zone { border: 2px dashed #007bff; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: 0.3s; }
+        .drop-zone:hover { background: #e7f1ff; }
+        #fileList { margin: 20px 0; list-style: none; padding: 0; }
+        #fileList li { background: #eee; margin-bottom: 5px; padding: 8px 12px; border-radius: 4px; display: flex; justify-content: space-between; }
+        button { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .loading { display: none; color: #007bff; text-align: center; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>PDF 結合ツール</h1>
+    <p style="font-size: 0.8rem; color: #666;">※ブラウザ内で処理されるため、サーバーにファイルは送信されません。</p>
+    
+    <div class="drop-zone" onclick="document.getElementById('fileInput').click()">
+        PDFファイルを選択、またはドラッグ＆ドロップ
+        <input type="file" id="fileInput" multiple accept="application/pdf" style="display:none">
+    </div>
+
+    <ul id="fileList"></ul>
+
+    <button id="mergeBtn" disabled>PDFを結合して保存</button>
+    <div id="status" class="loading">処理中...</div>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const fileList = document.getElementById('fileList');
+    const mergeBtn = document.getElementById('mergeBtn');
+    const status = document.getElementById('status');
+    let selectedFiles = [];
+
+    fileInput.onchange = (e) => {
+        const files = Array.from(e.target.files);
+        selectedFiles = [...selectedFiles, ...files];
+        updateList();
+    };
+
+    function updateList() {
+        fileList.innerHTML = selectedFiles.map((f, i) => `
+            <li>
+                <span>${i + 1}. ${f.name}</span>
+                <span style="cursor:pointer;color:red" onclick="removeFile(${i})">✕</span>
+            </li>
+        `).join('');
+        mergeBtn.disabled = selectedFiles.length < 2;
+    }
+
+    function removeFile(index) {
+        selectedFiles.splice(index, 1);
+        updateList();
+    }
+
+    mergeBtn.onclick = async () => {
+        status.style.display = 'block';
+        mergeBtn.disabled = true;
+
+        try {
+            const { PDFDocument } = PDFLib;
+            const mergedPdf = await PDFDocument.create();
+
+            for (const file of selectedFiles) {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await PDFDocument.load(arrayBuffer);
+                const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+                copiedPages.forEach((page) => mergedPdf.addPage(page));
+            }
+
+            const pdfBytes = await mergedPdf.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            
+            // ダウンロード処理
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'merged.pdf';
+            a.click();
+            
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            alert('エラーが発生しました: ' + err.message);
+        } finally {
+            status.style.display = 'none';
+            mergeBtn.disabled = false;
+        }
+    };
+</script>
+
+</body>
+</html>
