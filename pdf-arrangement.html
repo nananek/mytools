@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF結合 & 最適化ツール (A4 2in1)</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.js"></script>
+
+    <style>
+        body { background-color: #f8f9fa; padding-top: 40px; }
+        .drop-zone {
+            border: 2px dashed #adb5bd;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            background-color: #fff;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            background-color: #e9ecef;
+            border-color: #0d6efd;
+        }
+        .file-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-file-earmark-pdf-fill"></i> PDF結合 & 配置最適化ツール</h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        複数のPDFを選択してください。すべてのページをA4横用紙に2面付（A5サイズ）で敷き詰めます。<br>
+                        <small>※横向きのページは<strong>「上を左」</strong>にして縦向きに配置します。</small>
+                    </p>
+
+                    <div class="drop-zone mb-3" id="dropZone">
+                        <i class="bi bi-cloud-upload fs-1 text-secondary"></i>
+                        <p class="mt-2 mb-0">ここにPDFファイルをドラッグ＆ドロップ<br>またはクリックして選択</p>
+                        <input type="file" id="fileInput" accept="application/pdf" multiple style="display: none;">
+                    </div>
+
+                    <div id="fileListContainer" class="mb-3 d-none">
+                        <h6>選択されたファイル:</h6>
+                        <ul class="list-group file-list" id="fileList"></ul>
+                    </div>
+
+                    <div class="progress mb-3 d-none" id="progressContainer" style="height: 25px;">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0%</div>
+                    </div>
+
+                    <div id="statusAlert" class="alert d-none" role="alert"></div>
+
+                    <div class="d-grid gap-2">
+                        <button id="processBtn" class="btn btn-primary btn-lg" disabled>
+                            <i class="bi bi-gear-fill"></i> PDFを作成・ダウンロード
+                        </button>
+                    </div>
+                </div>
+                <div class="card-footer text-muted text-center py-2">
+                    <small>処理はすべてお使いのブラウザ内で行われます。サーバーにはアップロードされません。</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { PDFDocument, rgb, degrees } = PDFLib;
+
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const fileListContainer = document.getElementById('fileListContainer');
+    const fileList = document.getElementById('fileList');
+    const processBtn = document.getElementById('processBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const statusAlert = document.getElementById('statusAlert');
+
+    let selectedFiles = [];
+
+    // --- UI操作関連 ---
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+    function handleFiles(files) {
+        if (files.length === 0) return;
+        for (let file of files) {
+            if (file.type === 'application/pdf') {
+                selectedFiles.push(file);
+            }
+        }
+        updateFileList();
+    }
+
+    function updateFileList() {
+        fileList.innerHTML = '';
+        if (selectedFiles.length > 0) {
+            fileListContainer.classList.remove('d-none');
+            processBtn.disabled = false;
+            
+            selectedFiles.forEach((file, index) => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                li.innerHTML = `
+                    <span><i class="bi bi-file-pdf text-danger"></i> ${file.name} <small class="text-muted">(${Math.round(file.size/1024)} KB)</small></span>
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeFile(${index})"><i class="bi bi-trash"></i></button>
+                `;
+                fileList.appendChild(li);
+            });
+            updateStatus('', 'none');
+        } else {
+            fileListContainer.classList.add('d-none');
+            processBtn.disabled = true;
+        }
+    }
+
+    window.removeFile = function(index) {
+        selectedFiles.splice(index, 1);
+        updateFileList();
+    };
+
+    function updateStatus(message, type = 'info') {
+        if (!message) {
+            statusAlert.className = 'alert d-none';
+            return;
+        }
+        statusAlert.className = `alert alert-${type}`;
+        statusAlert.classList.remove('d-none');
+        statusAlert.innerHTML = message;
+    }
+
+    function updateProgress(percent, message) {
+        progressContainer.classList.remove('d-none');
+        progressBar.style.width = `${percent}%`;
+        progressBar.innerText = `${Math.round(percent)}%`;
+        if(message) updateStatus(message, 'info');
+    }
+
+    // --- PDF処理ロジック ---
+
+    processBtn.addEventListener('click', async () => {
+        try {
+            processBtn.disabled = true;
+            updateProgress(1, "処理を開始します...");
+            
+            // 出力用ドキュメント作成
+            const outDoc = await PDFDocument.create();
+            
+            // A4 Landscape 定義
+            const A4_WIDTH = 842; 
+            const A4_HEIGHT = 595;
+            const CELL_WIDTH = A4_WIDTH / 2;
+            const CELL_HEIGHT = A4_HEIGHT;
+            const MARGIN = 15; // 余白
+            
+            // 描画可能エリア
+            const DRAW_AREA_W = CELL_WIDTH - (MARGIN * 2);
+            const DRAW_AREA_H = CELL_HEIGHT - (MARGIN * 2);
+
+            let globalPageIndex = 0; // 全ファイル通してのページカウント
+            let currentOutPage = null;
+
+            // 全ファイルループ
+            for (let fIndex = 0; fIndex < selectedFiles.length; fIndex++) {
+                const file = selectedFiles[fIndex];
+                updateProgress((fIndex / selectedFiles.length) * 100, `ファイルを読み込み中: ${file.name}`);
+
+                const arrayBuffer = await file.arrayBuffer();
+                const srcDoc = await PDFDocument.load(arrayBuffer);
+                
+                // ページを埋め込み用オブジェクトとして取得
+                const embeddedPages = await outDoc.embedPdf(srcDoc, srcDoc.getPageIndices());
+
+                // 各ページ処理
+                for (let i = 0; i < embeddedPages.length; i++) {
+                    const embeddedPage = embeddedPages[i];
+                    
+                    // 2ページごとに新しいA4用紙を作成
+                    const positionIndex = globalPageIndex % 2; // 0:Left, 1:Right
+                    if (positionIndex === 0) {
+                        currentOutPage = outDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+                    }
+
+                    // --- サイズ計算と配置 ---
+                    const srcW = embeddedPage.width;
+                    const srcH = embeddedPage.height;
+                    
+                    // 回転判定: 横長(Landscape)なら回転させる
+                    const isLandscape = srcW > srcH;
+                    let rotateAngle = 0;
+                    
+                    // 拡大縮小率の計算
+                    let scaleFactor;
+                    
+                    if (isLandscape) {
+                        // 横長の場合：90度回転(反時計回り)して「上を左」にする
+                        rotateAngle = 90;
+                        
+                        // 幅と高さを入れ替えてフィット計算
+                        // (描画エリアの幅) / (元の高さ), (描画エリアの高さ) / (元の幅)
+                        const scaleW = DRAW_AREA_W / srcH;
+                        const scaleH = DRAW_AREA_H / srcW;
+                        scaleFactor = Math.min(scaleW, scaleH);
+                    } else {
+                        // そのまま配置
+                        rotateAngle = 0;
+                        const scaleW = DRAW_AREA_W / srcW;
+                        const scaleH = DRAW_AREA_H / srcH;
+                        scaleFactor = Math.min(scaleW, scaleH);
+                    }
+
+                    // 描画後の実サイズ（回転前のスケーリング）
+                    const finalW = srcW * scaleFactor;
+                    const finalH = srcH * scaleFactor;
+
+                    // 配置座標 (セルの中心に持ってくる)
+                    const cellStartX = positionIndex * CELL_WIDTH;
+                    const cellStartY = 0;
+
+                    let drawOptions = {};
+
+                    if (isLandscape) {
+                        // ■ 回転時の配置計算 (90度 反時計回り: 上が左に来る)
+                        // 回転後の見た目のサイズは 幅=finalH, 高さ=finalW になります。
+                        
+                        const visualWidth = finalH;
+                        const visualHeight = finalW;
+                        
+                        // セル内でのセンタリング余白
+                        const offsetX = (CELL_WIDTH - visualWidth) / 2;
+                        const offsetY = (CELL_HEIGHT - visualHeight) / 2;
+
+                        // pdf-libで rotate: 90 を指定すると、
+                        // 指定した (x, y) を基点に反時計回りに回転します。
+                        // 画像の左下(0,0)が基点なので、90度回すと画像は左(xマイナス方向)・上(yプラス方向)に伸びます。
+                        // そのため、描画開始点(x)を「画像の幅分だけ右」にずらす必要があります。
+
+                        drawOptions = {
+                            rotate: degrees(rotateAngle),
+                            // x: 配置したい左端 + 画像の見た目の幅(finalH)
+                            x: cellStartX + offsetX + finalH,
+                            // y: 配置したい下端
+                            y: cellStartY + offsetY, 
+                            width: finalW,
+                            height: finalH
+                        };
+                    } else {
+                        // 通常配置
+                        const offsetX = (CELL_WIDTH - finalW) / 2;
+                        const offsetY = (CELL_HEIGHT - finalH) / 2;
+                        
+                        drawOptions = {
+                            rotate: degrees(rotateAngle),
+                            x: cellStartX + offsetX,
+                            y: cellStartY + offsetY,
+                            width: finalW,
+                            height: finalH
+                        };
+                    }
+
+                    currentOutPage.drawPage(embeddedPage, drawOptions);
+                    
+                    globalPageIndex++;
+                }
+            }
+
+            updateProgress(100, "PDF生成中...");
+            
+            // 保存とダウンロード
+            const pdfBytes = await outDoc.save();
+            download(pdfBytes, "merged_layout_A5_left_top.pdf");
+
+            updateStatus("完了しました！ファイルがダウンロードされます。", "success");
+            processBtn.disabled = false;
+
+        } catch (err) {
+            console.error(err);
+            updateStatus(`エラーが発生しました: ${err.message}`, "danger");
+            processBtn.disabled = false;
+        }
+    });
+
+    function download(data, filename) {
+        const blob = new Blob([data], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+</script>
+
+</body>
+</html>
