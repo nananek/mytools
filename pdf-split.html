@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Splitter to ZIP</title>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+        .container {
+            text-align: center;
+            width: 90%;
+            max-width: 600px;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .drop-zone {
+            border: 3px dashed #cbd5e0;
+            border-radius: 8px;
+            padding: 3rem 1rem;
+            margin-top: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #4299e1;
+            background-color: #ebf8ff;
+        }
+        .drop-zone p {
+            margin: 0;
+            font-size: 1.1rem;
+            color: #718096;
+        }
+        #fileInput {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        #status {
+            margin-top: 1.5rem;
+            font-weight: bold;
+            min-height: 1.5em;
+        }
+        .success { color: #38a169; }
+        .error { color: #e53e3e; }
+        .processing { color: #3182ce; }
+        
+        .btn {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .btn:disabled {
+            background-color: #a0aec0;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>PDFページ分割＆ZIP化ツール</h2>
+    <p>PDFファイルをドラッグ＆ドロップしてください。<br>1ページずつ分割してZIPでダウンロードします。</p>
+    
+    <div class="drop-zone" id="dropZone">
+        <p>ここにPDFをドロップ<br>またはクリックして選択</p>
+        <input type="file" id="fileInput" accept="application/pdf">
+    </div>
+
+    <div id="status"></div>
+</div>
+
+<script>
+    const { PDFDocument } = PDFLib;
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const statusDiv = document.getElementById('status');
+
+    // ドラッグ&ドロップのスタイル制御
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            handleFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    // ファイル選択時
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) {
+            handleFile(e.target.files[0]);
+        }
+    });
+
+    async function handleFile(file) {
+        if (file.type !== 'application/pdf') {
+            showStatus('PDFファイルのみ対応しています。', 'error');
+            return;
+        }
+
+        try {
+            showStatus('PDFを読み込み中...', 'processing');
+            
+            // ファイルをArrayBufferとして読み込む
+            const arrayBuffer = await file.arrayBuffer();
+
+            // pdf-libでドキュメントをロード
+            const pdfDoc = await PDFDocument.load(arrayBuffer);
+            const pageCount = pdfDoc.getPageCount();
+
+            if (pageCount === 0) {
+                showStatus('ページが存在しないPDFです。', 'error');
+                return;
+            }
+
+            showStatus(`${pageCount}ページを分割して圧縮中...`, 'processing');
+
+            // JSZipのインスタンス作成
+            const zip = new JSZip();
+            const originalName = file.name.replace(/\.pdf$/i, "");
+
+            // 全ページをループ
+            for (let i = 0; i < pageCount; i++) {
+                // 新しいPDFドキュメントを作成
+                const newPdf = await PDFDocument.create();
+                
+                // 元のPDFから特定のページをコピー
+                const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
+                
+                // 新しいPDFに追加
+                newPdf.addPage(copiedPage);
+                
+                // バイナリとして保存
+                const pdfBytes = await newPdf.save();
+
+                // ファイル名の生成 (例: filename_page_001.pdf)
+                const pageNum = String(i + 1).padStart(3, '0');
+                const fileName = `${originalName}_page_${pageNum}.pdf`;
+
+                // ZIPに追加
+                zip.file(fileName, pdfBytes);
+            }
+
+            showStatus('ZIPファイルを生成中...', 'processing');
+
+            // ZIPファイルを生成してダウンロード
+            const content = await zip.generateAsync({ type: "blob" });
+            saveAs(content, `${originalName}_split.zip`);
+
+            showStatus('完了！ダウンロードを開始しました。', 'success');
+            
+            // 入力をリセット（同じファイルを再度選べるように）
+            fileInput.value = '';
+
+        } catch (error) {
+            console.error(error);
+            showStatus('エラーが発生しました: ' + error.message, 'error');
+        }
+    }
+
+    function showStatus(text, type) {
+        statusDiv.textContent = text;
+        statusDiv.className = type;
+    }
+</script>
+
+</body>
+</html>
