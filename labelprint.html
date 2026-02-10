@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>インデックスラベル PDF生成ツール</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+    /* --- 設定変数 --- */
+    :root {
+        --mirror-dist: 6.1mm; 
+        --offset-x: 0mm;
+        --offset-y: 0mm;
+        --cell-w: 31.5mm; 
+        --cell-h: 24.8mm;
+        --margin-top: 2.2mm;   
+        --margin-right: 5.65mm;
+        --base-font-size: 3.3mm;
+    }
+
+    /* --- UIスタイル --- */
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f7f6; margin: 0; padding: 0; color: #333; }
+    
+    /* コントロールバー */
+    #controls {
+        background: #fff; border-bottom: 1px solid #ddd; padding: 10px 20px;
+        position: sticky; top: 0; z-index: 100;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        display: flex; flex-wrap: wrap; gap: 15px; align-items: center; justify-content: space-between;
+    }
+    
+    .ctrl-section { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .ctrl-group-box { 
+        display: flex; align-items: center; gap: 10px; 
+        background: #f8f9fa; padding: 4px 10px; border-radius: 6px; border: 1px solid #eee;
+    }
+    
+    .divider { height: 24px; width: 1px; background: #ddd; margin: 0 2px; }
+    
+    button { 
+        padding: 6px 12px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; 
+        font-weight: 600; background: #fff; color: #444; font-size: 0.85rem; transition: 0.2s; 
+        white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;
+    }
+    button:hover { background: #f0f0f0; border-color: #bbb; }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    
+    button.primary { background: #007bff; color: white; border-color: #007bff; }
+    button.primary:hover { background: #0069d9; }
+    button.success { background: #28a745; color: white; border-color: #28a745; }
+    button.success:hover { background: #218838; }
+
+    input[type="number"] { 
+        width: 50px; padding: 4px; border-radius: 4px; border: 1px solid #ccc; 
+        text-align: right; font-family: monospace; font-weight: bold;
+    }
+    label { font-size: 0.85rem; font-weight: bold; color: #555; cursor: pointer; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .unit { font-size: 0.75rem; color: #888; }
+
+    /* --- プレビューエリア --- */
+    #previewArea {
+        padding: 40px; min-height: calc(100vh - 80px);
+        display: flex; justify-content: center; flex-direction: column; align-items: center;
+        user-select: none; 
+    }
+    /* プレビュー用の紙（画面確認用） */
+    .sheet {
+        width: 297mm; height: 210mm; background: white;
+        position: relative; overflow: hidden;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        margin-bottom: 40px;
+        /* 画面上では少し縮小して見やすくする */
+        transform-origin: top center;
+    }
+
+    .grid-container {
+        position: absolute;
+        top: calc(var(--margin-top) + var(--offset-y));
+        right: calc(var(--margin-right) - var(--offset-x));
+        width: calc(var(--cell-w) * 9); 
+        height: calc(var(--cell-h) * 8);
+        display: grid; direction: rtl; 
+        grid-template-columns: repeat(9, var(--cell-w));
+        grid-template-rows: repeat(8, var(--cell-h));
+        grid-auto-flow: column; 
+    }
+
+    .cell {
+        width: var(--cell-w); height: var(--cell-h);
+        position: relative; border: 0.5px dotted #e0e0e0;
+        box-sizing: border-box; display: flex; justify-content: center; align-items: center;
+    }
+    .cell:hover { background-color: #f0f8ff; cursor: context-menu; }
+    .cell.active-target { background-color: #e3f2fd; }
+
+    .center-axis { position: relative; width: 0; height: 0; }
+    
+    .label-text-wrapper {
+        position: absolute; top: 0; transform: translate(-50%, -50%);
+        writing-mode: vertical-rl; text-orientation: upright;
+        white-space: pre; 
+        font-family: "HeiseiMin-W3", "Hiragino Mincho ProN", "Yu Mincho", serif;
+        font-size: var(--base-font-size); line-height: 1.0;
+        outline: none; min-width: 1em; min-height: 1em; text-align: center;
+    }
+    .label-text-wrapper:focus { background: #e8f0fe; z-index: 10; border-radius: 2px; cursor: text; }
+    
+    .text-plus { left: var(--mirror-dist); }
+    .text-minus { left: calc(var(--mirror-dist) * -1); }
+
+    /* --- コンテキストメニュー --- */
+    #contextMenu {
+        display: none; position: absolute; z-index: 1000;
+        background: white; border: 1px solid #ddd; border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 5px 0; min-width: 180px;
+    }
+    #contextMenu div { padding: 8px 16px; cursor: pointer; font-size: 0.9rem; color: #333; }
+    #contextMenu div:hover { background: #f5f5f5; }
+    #contextMenu .menu-danger { color: #dc3545; border-top: 1px solid #eee; margin-top: 4px; padding-top: 8px; }
+
+    /* --- モーダル --- */
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); z-index: 2000;
+        display: none; align-items: center; justify-content: center;
+        backdrop-filter: blur(2px);
+    }
+    .modal-content {
+        background: white; width: 90%; max-width: 500px; max-height: 80vh;
+        border-radius: 8px; padding: 20px; display: flex; flex-direction: column;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    .modal-header { font-weight: bold; font-size: 1.1rem; margin-bottom: 5px; }
+    .list-editor {
+        flex-grow: 1; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; margin-bottom: 15px;
+        background: #fafafa;
+    }
+    .list-row {
+        display: flex; border-bottom: 1px solid #eee; padding: 4px 8px; background: white; align-items: start;
+    }
+    .list-idx { width: 30px; color: #aaa; font-size: 0.75rem; padding-top: 10px; text-align: center; }
+    .list-input { 
+        flex-grow: 1; padding: 8px; border: 1px solid transparent; border-radius: 4px; 
+        font-family: inherit; font-size: 0.95rem; resize: none; overflow: hidden; min-height: 2.4em;
+        line-height: 1.2;
+    }
+    .list-input:focus { border-color: #007bff; outline: none; background: #fdfdfd; }
+    .list-del { color: #dc3545; cursor: pointer; padding: 8px; opacity: 0.3; transition: 0.2s; display: flex; align-items: center; }
+    .list-del:hover { opacity: 1; background: #fff5f5; border-radius: 4px; }
+
+</style>
+</head>
+<body>
+
+<div id="controls">
+    <div class="ctrl-section">
+        <button class="primary" onclick="openEditModal()">📝 リスト編集</button>
+        <button onclick="document.getElementById('csvFile').click()">📂 CSV読込</button>
+        <input type="file" id="csvFile" accept=".csv" onchange="loadCSV(this)" style="display:none;">
+        <button onclick="loadSample()">サンプル</button>
+        <button onclick="clearAll()">クリア</button>
+    </div>
+
+    <div class="ctrl-section">
+        <div class="ctrl-group-box">
+            <label>開始位置 <input type="number" id="startPos" value="0" min="0" onchange="render()"></label>
+        </div>
+
+        <div class="ctrl-group-box">
+            <label>中心 <input type="number" id="distInput" value="6.1" step="0.1" onchange="updateStyles()"><span class="unit">mm</span></label>
+            <div class="divider"></div>
+            <label>X <input type="number" id="xInput" value="0.0" step="0.1" onchange="updateStyles()"><span class="unit">mm</span></label>
+            <div class="divider"></div>
+            <label>Y <input type="number" id="yInput" value="0.0" step="0.1" onchange="updateStyles()"><span class="unit">mm</span></label>
+        </div>
+    </div>
+
+    <div class="ctrl-section" style="margin-left: auto;">
+        <button id="btnPdf" class="success" onclick="generatePDF()">📄 PDF保存</button>
+    </div>
+</div>
+
+<div id="previewArea"></div>
+
+<div id="contextMenu">
+    <div onclick="menuAction('insert')">⤵ 1つ挿入 (後ろへ送る)</div>
+    <div onclick="menuAction('pagebreak')">📄 次のページへ送る</div>
+    <div onclick="menuAction('clear')">✕ 文字のみ消去</div>
+    <div onclick="menuAction('delete')" class="menu-danger">🗑 1つ削除 (前へ詰める)</div>
+</div>
+
+<div id="editModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">リスト一括編集</div>
+        <div class="list-editor" id="listEditorBody"></div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="addListRow()">＋ 行追加</button>
+            <div style="flex-grow:1"></div>
+            <button onclick="closeEditModal()">キャンセル</button>
+            <button class="primary" onclick="saveListEdit()">反映する</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// --- グローバル設定 ---
+const { jsPDF } = window.jspdf;
+let labelData = []; 
+let contextTargetIndex = -1; 
+const rows = 9; const cols = 8;
+const itemsPerPage = rows * cols; // 72
+const BASE_SIZE_MM = 3.3; 
+
+// --- 初期化 ---
+window.onload = function() {
+    loadSample(); 
+    document.addEventListener('click', function(e) {
+        document.getElementById('contextMenu').style.display = 'none';
+        document.querySelectorAll('.active-target').forEach(el => el.classList.remove('active-target'));
+    });
+};
+
+function updateStyles() {
+    const root = document.documentElement;
+    root.style.setProperty('--mirror-dist', document.getElementById('distInput').value + 'mm');
+    root.style.setProperty('--offset-x', document.getElementById('xInput').value + 'mm');
+    root.style.setProperty('--offset-y', document.getElementById('yInput').value + 'mm');
+}
+
+// --- フォント読み込み (PDF用) ---
+// Noto Serif JP をCDNから取得 (約4.5MB)
+const fontUrl = "https://raw.githubusercontent.com/google/fonts/main/ofl/notoserifjp/NotoSerifJP-Regular.ttf";
+let fontBuffer = null;
+
+async function loadFont() {
+    if (fontBuffer) return fontBuffer;
+    
+    const btn = document.getElementById('btnPdf');
+    const originalText = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = "フォントDL中...";
+
+    try {
+        const response = await fetch(fontUrl);
+        if (!response.ok) throw new Error("Font fetch failed");
+        fontBuffer = await response.arrayBuffer();
+        btn.innerText = originalText;
+        btn.disabled = false;
+        return fontBuffer;
+    } catch (e) {
+        alert("フォントのダウンロードに失敗しました。インターネット接続を確認してください。\n" + e.message);
+        btn.innerText = "エラー";
+        return null;
+    }
+}
+
+// --- PDF生成ロジック (jsPDF) ---
+async function generatePDF() {
+    const buffer = await loadFont();
+    if (!buffer) return;
+
+    // PDF初期化 (A4 横)
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    
+    // フォント登録 (Base64変換)
+    const fontFileName = "NotoSerifJP-Regular.ttf";
+    const fontBase64 = arrayBufferToBase64(buffer);
+    doc.addFileToVFS(fontFileName, fontBase64);
+    doc.addFont(fontFileName, "MyFont", "normal");
+    doc.setFont("MyFont");
+
+    // 設定値取得
+    const startPos = parseInt(document.getElementById('startPos').value) || 0;
+    const mirrorDist = parseFloat(document.getElementById('distInput').value) || 6.1;
+    const offsetX = parseFloat(document.getElementById('xInput').value) || 0;
+    const offsetY = parseFloat(document.getElementById('yInput').value) || 0;
+
+    // 座標計算定数 (CSSと合わせる)
+    // CSS: right: calc(5.65mm - offsetX) -> PDFのX座標は左起点なので変換が必要
+    // PDF Width 297mm.
+    // Grid Origin X (Right edge of grid) = 297 - 5.65 + offsetX
+    const PAGE_W = 297;
+    const MARGIN_R = 5.65;
+    const MARGIN_T = 2.2;
+    const CELL_W = 31.5;
+    const CELL_H = 24.8;
+    
+    // PDF上のグリッド開始位置(右上基準だが、計算は左起点)
+    // CSSの grid は RTL なので、col 0 は一番右。
+    // col 0 の X座標(左端) = (297 - 5.65 + offsetX) - (1 * 31.5)
+    // col i の X座標(左端) = (297 - 5.65 + offsetX) - ((i + 1) * 31.5)
+    
+    const gridOriginX_RightEdge = PAGE_W - MARGIN_R + offsetX;
+    const gridOriginY_TopEdge = MARGIN_T + offsetY;
+
+    const totalSlots = startPos + labelData.length;
+    const pageCount = Math.max(1, Math.ceil(totalSlots / itemsPerPage));
+
+    for (let p = 0; p < pageCount; p++) {
+        if (p > 0) doc.addPage();
+
+        for (let i = 0; i < itemsPerPage; i++) {
+            const globalIdx = p * itemsPerPage + i;
+            
+            // データ取得
+            let text = "";
+            const dataIdx = globalIdx - startPos;
+            if (dataIdx >= 0 && dataIdx < labelData.length) {
+                text = labelData[dataIdx];
+            }
+            if (!text) continue; // 空白なら描画しない
+
+            // グリッド位置計算
+            // itemsPerPage = 72 (9 cols x 8 rows)
+            // CSS grid-auto-flow: column -> 縦(row)を先に埋める
+            // index 0 -> col 0, row 0
+            // index 1 -> col 0, row 1
+            // index 7 -> col 0, row 7
+            // index 8 -> col 1, row 0
+            
+            const col = Math.floor(i / rows); // 0..8
+            const row = i % rows;             // 0..7 (cols=8, rows=9 wait. CSS was rows=8, cols=9 in variable naming but 9x8 grid)
+            // CSS: grid-template-columns: repeat(9...); grid-template-rows: repeat(8...);
+            // Wait, previous code consts were: const rows = 9; const cols = 8;
+            // Let's check loop: itemsPerPage = 72.
+            // Loop i fills column first.
+            // Correct logic:
+            // col index (0..8) = Math.floor(i / 8) -> No, height is 8 rows.
+            // So one column has 8 items.
+            // col = Math.floor(i / 8); 
+            // row = i % 8;
+            
+            // X座標 (左端)
+            const cellX = gridOriginX_RightEdge - ((col + 1) * CELL_W);
+            // Y座標 (上端)
+            const cellY = gridOriginY_TopEdge + (row * CELL_H);
+            
+            // セル中心
+            const centerX = cellX + (CELL_W / 2);
+            const centerY = cellY + (CELL_H / 2);
+
+            // フォントサイズ計算
+            const lines = text.split('\n');
+            let maxLen = 0;
+            lines.forEach(l => maxLen = Math.max(maxLen, l.length));
+            let fontSizeMm = BASE_SIZE_MM;
+            if (maxLen > 5) fontSizeMm = BASE_SIZE_MM * 5 / maxLen;
+            
+            // ポイントに変換 (jsPDF uses points by default for setFontSize, but we set unit:mm so...)
+            // Actually setFontSize in jsPDF usually expects points even if unit is mm, OR it scales. 
+            // Let's assume points roughly. 1mm = 2.83pt.
+            const fontSizePt = fontSizeMm * 2.835; 
+            doc.setFontSize(fontSizePt);
+
+            // 描画 (Plus位置: 右)
+            drawVerticalText(doc, text, centerX + mirrorDist, centerY, fontSizeMm);
+            // 描画 (Minus位置: 左)
+            drawVerticalText(doc, text, centerX - mirrorDist, centerY, fontSizeMm);
+        }
+    }
+
+    doc.save("index_labels.pdf");
+}
+
+function arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+}
+
+// 縦書き描画関数 (簡易版)
+function drawVerticalText(doc, text, x, y, sizeMm) {
+    const lines = text.split('\n');
+    // 複数行の場合のXオフセット計算 (行間なし)
+    // 行数に応じて全体の幅を計算し、センタリング
+    // vertical text, so lines stack horizontally (right to left typically, but labels are centered)
+    // Let's center lines around x.
+    
+    // 簡易実装: 1行ならx, 2行なら x+offset, x-offset
+    // 行間はフォントサイズ分
+    const lineHeight = sizeMm; 
+    const totalWidth = lines.length * lineHeight;
+    let currentX = x + (totalWidth / 2) - (lineHeight / 2); // 右端スタート(縦書きは右から左)
+
+    lines.forEach(line => {
+        const chars = line.split('');
+        const totalH = chars.length * sizeMm;
+        let currentY = y - (totalH / 2) + (sizeMm * 0.4); // 垂直方向センタリング補正(0.4はベースライン調整)
+
+        chars.forEach(char => {
+            // 文字ごとの回転は不要（正立）
+            doc.text(char, currentX, currentY, { align: 'center', baseline: 'middle' });
+            currentY += sizeMm;
+        });
+        currentX -= lineHeight; // 左へ移動
+    });
+}
+
+
+// --- 以下のロジックはHTML版と同じ ---
+function showContextMenu(e, index) {
+    e.preventDefault(); contextTargetIndex = index;
+    document.querySelectorAll('.active-target').forEach(el => el.classList.remove('active-target'));
+    e.currentTarget.classList.add('active-target');
+    const menu = document.getElementById('contextMenu');
+    menu.style.display = 'block';
+    let x = e.pageX; let y = e.pageY;
+    if (x + 180 > window.innerWidth) x -= 180;
+    menu.style.left = x + 'px'; menu.style.top = y + 'px';
+}
+function menuAction(action) {
+    if (contextTargetIndex === -1) return;
+    const startPos = parseInt(document.getElementById('startPos').value) || 0;
+    let dataIdx = contextTargetIndex - startPos;
+    if (action === 'insert') { ensureArrayLength(dataIdx); labelData.splice(dataIdx, 0, ""); } 
+    else if (action === 'delete') { if (dataIdx >= 0 && dataIdx < labelData.length) labelData.splice(dataIdx, 1); }
+    else if (action === 'clear') { ensureArrayLength(dataIdx); labelData[dataIdx] = ""; }
+    else if (action === 'pagebreak') {
+        const nextPageStart = Math.floor(contextTargetIndex / itemsPerPage + 1) * itemsPerPage;
+        const spacesNeeded = nextPageStart - contextTargetIndex;
+        ensureArrayLength(dataIdx);
+        for(let k=0; k<spacesNeeded; k++) labelData.splice(dataIdx, 0, "");
+    }
+    render();
+}
+function ensureArrayLength(targetIdx) { if (targetIdx < 0) return; while (labelData.length <= targetIdx) labelData.push(""); }
+function openEditModal() {
+    const body = document.getElementById('listEditorBody'); body.innerHTML = "";
+    labelData.forEach((text, i) => addListRowUI(body, i, text));
+    if(labelData.length === 0) addListRowUI(body, 0, "");
+    document.getElementById('editModal').style.display = 'flex';
+}
+function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
+function addListRowUI(container, index, text) {
+    const div = document.createElement('div'); div.className = 'list-row';
+    div.innerHTML = `<div class="list-idx">${index+1}</div><textarea class="list-input" rows="1"></textarea><div class="list-del" onclick="this.parentElement.remove()">✕</div>`;
+    div.querySelector('textarea').value = text; container.appendChild(div);
+}
+function addListRow() { addListRowUI(document.getElementById('listEditorBody'), document.getElementById('listEditorBody').children.length, ""); }
+function saveListEdit() {
+    const inputs = document.querySelectorAll('.list-input'); labelData = [];
+    inputs.forEach(input => labelData.push(input.value)); closeEditModal(); render();
+}
+function loadSample() { labelData = ["現金", "当座預金", "普通預金", "売掛金", "受取手形", "棚卸資産", "前払費用", "建物", "減価償却\n累計額", "繰越利益\n剰余金", "リース\n減価償却費"]; render(); }
+function clearAll() { if(confirm("消去しますか？")) { labelData = []; render(); } }
+function loadCSV(input) {
+    if (!input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = function(e) { labelData = parseCSV(e.target.result); render(); input.value = ''; };
+    reader.readAsText(input.files[0]);
+}
+function parseCSV(text) {
+    let list = [];
+    text.split(/\r\n|\n|\r/).forEach(line => {
+        const cols = line.split(',');
+        let val = ""; if (cols.length >= 2) val = cols[1]; else if (cols.length === 1) val = cols[0];
+        val = val.replace(/^"|"$/g, '').trim().replace(/\\n/g, '\n'); if(val) list.push(val);
+    });
+    return list;
+}
+function updateFontSize(element, text) {
+    if (!text) { element.style.fontSize = `${BASE_SIZE_MM}mm`; return; }
+    const lines = text.split(/\n/); let maxLen = 0;
+    lines.forEach(line => { if (line.length > maxLen) maxLen = line.length; });
+    let size = BASE_SIZE_MM; if (maxLen > 5) { size = BASE_SIZE_MM * 5 / maxLen; }
+    element.style.fontSize = `${size}mm`;
+}
+function handleInput(e) {
+    const target = e.target; const text = target.innerText;
+    const cell = target.closest('.cell');
+    if(cell) {
+        const idx = parseInt(cell.dataset.index); const startPos = parseInt(document.getElementById('startPos').value) || 0;
+        const dataIdx = idx - startPos;
+        if(dataIdx >= 0) { ensureArrayLength(dataIdx); labelData[dataIdx] = text; }
+    }
+    updateFontSize(target, text);
+    const isPlus = target.classList.contains('text-plus');
+    const pair = isPlus ? target.parentElement.querySelector('.text-minus') : target.parentElement.querySelector('.text-plus');
+    if (pair && pair.innerText !== text) { pair.innerText = text; updateFontSize(pair, text); }
+}
+function render() {
+    const container = document.getElementById('previewArea'); container.innerHTML = "";
+    const startPos = parseInt(document.getElementById('startPos').value) || 0;
+    const totalSlots = startPos + labelData.length;
+    const pageCount = Math.max(1, Math.ceil(totalSlots / itemsPerPage));
+    for (let p = 0; p < pageCount; p++) {
+        const sheet = document.createElement('div'); sheet.className = 'sheet';
+        const grid = document.createElement('div'); grid.className = 'grid-container';
+        for (let i = 0; i < itemsPerPage; i++) {
+            const globalIdx = p * itemsPerPage + i;
+            const cell = document.createElement('div'); cell.className = 'cell'; cell.dataset.index = globalIdx;
+            cell.addEventListener('contextmenu', (e) => showContextMenu(e, globalIdx));
+            let text = ""; const dataIdx = globalIdx - startPos;
+            if (dataIdx >= 0 && dataIdx < labelData.length) { text = labelData[dataIdx]; }
+            const anchor = document.createElement('div'); anchor.className = 'center-axis';
+            const textPlus = document.createElement('div'); textPlus.className = 'label-text-wrapper text-plus';
+            textPlus.contentEditable = true; textPlus.innerText = text; 
+            const textMinus = document.createElement('div'); textMinus.className = 'label-text-wrapper text-minus';
+            textMinus.contentEditable = true; textMinus.innerText = text;
+            updateFontSize(textPlus, text); updateFontSize(textMinus, text);
+            textPlus.addEventListener('input', handleInput); textMinus.addEventListener('input', handleInput);
+            cell.onclick = function(e) { if (e.target === cell) textPlus.focus(); };
+            anchor.appendChild(textPlus); anchor.appendChild(textMinus);
+            cell.appendChild(anchor); grid.appendChild(cell);
+        }
+        sheet.appendChild(grid); container.appendChild(sheet);
+    }
+}
+</script>
+</body>
+</html>
