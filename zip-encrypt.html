@@ -433,7 +433,7 @@
         try {
             const zipWriter = new zip.ZipWriter(
                 new zip.BlobWriter("application/zip"),
-                { password: password, encryptionStrength: 3 }
+                { password: password, zipCrypto: true }
             );
 
             for (let i = 0; i < selectedFiles.length; i++) {
