@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>パスワード付きZIP作成</title>
+    <script src="https://unpkg.com/@zip.js/zip.js/dist/zip-full.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+        .container {
+            text-align: center;
+            width: 90%;
+            max-width: 600px;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin: 0 0 0.5rem;
+            color: #2d3748;
+        }
+        .subtitle {
+            color: #718096;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+        .drop-zone {
+            border: 3px dashed #cbd5e0;
+            border-radius: 8px;
+            padding: 2.5rem 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #4299e1;
+            background-color: #ebf8ff;
+        }
+        .drop-zone p {
+            margin: 0;
+            font-size: 1.1rem;
+            color: #718096;
+        }
+        .drop-zone .icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        #fileInput {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-list {
+            margin-top: 1rem;
+            text-align: left;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.75rem;
+            background: #f7fafc;
+            border-radius: 6px;
+            margin-bottom: 0.4rem;
+            font-size: 0.85rem;
+        }
+        .file-item .name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+            margin-right: 0.5rem;
+        }
+        .file-item .size {
+            color: #a0aec0;
+            white-space: nowrap;
+            margin-right: 0.5rem;
+        }
+        .file-item .remove-btn {
+            background: none;
+            border: none;
+            color: #e53e3e;
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 0 4px;
+            line-height: 1;
+        }
+        .file-item .remove-btn:hover {
+            color: #c53030;
+        }
+
+        .password-section {
+            margin-top: 1.5rem;
+            text-align: left;
+        }
+        .password-section label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #4a5568;
+            display: block;
+            margin-bottom: 0.4rem;
+        }
+        .password-row {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .password-row input {
+            flex: 1;
+            padding: 0.6rem 0.8rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        .password-row input:focus {
+            outline: none;
+            border-color: #4299e1;
+        }
+        .toggle-vis {
+            padding: 0.6rem 0.8rem;
+            background: #edf2f7;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
+        }
+        .toggle-vis:hover {
+            background: #e2e8f0;
+        }
+
+        .filename-section {
+            margin-top: 1rem;
+            text-align: left;
+        }
+        .filename-section label {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #4a5568;
+            display: block;
+            margin-bottom: 0.4rem;
+        }
+        .filename-section input {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        .filename-section input:focus {
+            outline: none;
+            border-color: #4299e1;
+        }
+
+        .create-btn {
+            margin-top: 1.5rem;
+            width: 100%;
+            padding: 0.8rem;
+            background: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .create-btn:hover:not(:disabled) {
+            background: #3182ce;
+        }
+        .create-btn:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+
+        .progress-bar {
+            margin-top: 1rem;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            overflow: hidden;
+            display: none;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            background: #4299e1;
+            border-radius: 3px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        #status {
+            margin-top: 1rem;
+            font-weight: bold;
+            min-height: 1.5em;
+            font-size: 0.95rem;
+        }
+        .success { color: #38a169; }
+        .error { color: #e53e3e; }
+        .info { color: #4299e1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>&#128274; パスワード付きZIP作成</h1>
+        <p class="subtitle">ファイルをドラッグ&ドロップしてパスワード付きZIPを作成</p>
+
+        <div class="drop-zone" id="dropZone">
+            <div class="icon">&#128193;</div>
+            <p>ファイルをドロップ または クリックして選択</p>
+            <input type="file" id="fileInput" multiple>
+        </div>
+
+        <div class="file-list" id="fileList"></div>
+
+        <div class="password-section">
+            <label for="password">パスワード</label>
+            <div class="password-row">
+                <input type="password" id="password" placeholder="パスワードを入力">
+                <button class="toggle-vis" id="toggleVis" title="表示切替">&#128065;</button>
+            </div>
+        </div>
+
+        <div class="filename-section">
+            <label for="zipName">ZIPファイル名</label>
+            <input type="text" id="zipName" placeholder="archive.zip" value="archive.zip">
+        </div>
+
+        <button class="create-btn" id="createBtn" disabled>ZIP作成</button>
+
+        <div class="progress-bar" id="progressBar">
+            <div class="fill" id="progressFill"></div>
+        </div>
+        <div id="status"></div>
+    </div>
+
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileListEl = document.getElementById('fileList');
+    const passwordInput = document.getElementById('password');
+    const toggleVis = document.getElementById('toggleVis');
+    const zipNameInput = document.getElementById('zipName');
+    const createBtn = document.getElementById('createBtn');
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    const statusEl = document.getElementById('status');
+
+    let selectedFiles = [];
+
+    // ドラッグ&ドロップ
+    dropZone.addEventListener('dragover', e => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        addFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', () => {
+        addFiles(fileInput.files);
+        fileInput.value = '';
+    });
+
+    function addFiles(fileListObj) {
+        for (const f of fileListObj) {
+            if (!selectedFiles.some(sf => sf.name === f.name && sf.size === f.size)) {
+                selectedFiles.push(f);
+            }
+        }
+        renderFileList();
+        updateBtn();
+    }
+
+    function removeFile(index) {
+        selectedFiles.splice(index, 1);
+        renderFileList();
+        updateBtn();
+    }
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function renderFileList() {
+        fileListEl.innerHTML = selectedFiles.map((f, i) =>
+            `<div class="file-item">
+                <span class="name" title="${f.name}">${f.name}</span>
+                <span class="size">${formatSize(f.size)}</span>
+                <button class="remove-btn" onclick="removeFile(${i})" title="削除">&times;</button>
+            </div>`
+        ).join('');
+    }
+
+    function updateBtn() {
+        createBtn.disabled = selectedFiles.length === 0 || passwordInput.value.length === 0;
+    }
+
+    passwordInput.addEventListener('input', updateBtn);
+
+    toggleVis.addEventListener('click', () => {
+        const isPassword = passwordInput.type === 'password';
+        passwordInput.type = isPassword ? 'text' : 'password';
+    });
+
+    createBtn.addEventListener('click', createZip);
+
+    async function createZip() {
+        const password = passwordInput.value;
+        if (!password) {
+            statusEl.textContent = 'パスワードを入力してください';
+            statusEl.className = 'error';
+            return;
+        }
+        if (selectedFiles.length === 0) return;
+
+        createBtn.disabled = true;
+        progressBar.style.display = 'block';
+        progressFill.style.width = '0%';
+        statusEl.textContent = 'ZIP作成中...';
+        statusEl.className = 'info';
+
+        try {
+            const zipWriter = new zip.ZipWriter(
+                new zip.BlobWriter("application/zip"),
+                { password: password, encryptionStrength: 3 }
+            );
+
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                await zipWriter.add(file.name, new zip.BlobReader(file));
+                const pct = Math.round(((i + 1) / selectedFiles.length) * 100);
+                progressFill.style.width = pct + '%';
+                statusEl.textContent = `処理中... (${i + 1}/${selectedFiles.length})`;
+            }
+
+            const blob = await zipWriter.close();
+
+            let name = zipNameInput.value.trim() || 'archive.zip';
+            if (!name.endsWith('.zip')) name += '.zip';
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            statusEl.textContent = `${name} を作成しました (${formatSize(blob.size)})`;
+            statusEl.className = 'success';
+        } catch (err) {
+            console.error(err);
+            statusEl.textContent = 'エラー: ' + err.message;
+            statusEl.className = 'error';
+        } finally {
+            createBtn.disabled = false;
+            updateBtn();
+        }
+    }
+</script>
+</body>
+</html>
