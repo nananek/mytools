@@ -62,6 +62,21 @@
             top: 0; left: 0; width: 100%; height: 100%;
             opacity: 0;
             cursor: pointer;
+            display: none;
+        }
+        .add-btn {
+            padding: 0.5rem 1rem;
+            background: #edf2f7;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #4a5568;
+            transition: background 0.2s;
+        }
+        .add-btn:hover {
+            background: #e2e8f0;
         }
 
         .file-list {
@@ -224,8 +239,13 @@
 
         <div class="drop-zone" id="dropZone">
             <div class="icon">&#128193;</div>
-            <p>ファイルをドロップ または クリックして選択</p>
-            <input type="file" id="fileInput" multiple>
+            <p>ファイル・フォルダをドロップ</p>
+            <input type="file" id="fileInput" multiple webkitdirectory>
+            <input type="file" id="fileInputFiles" multiple style="display:none">
+        </div>
+        <div style="display:flex;gap:0.5rem;margin-top:0.75rem;justify-content:center;">
+            <button class="add-btn" id="addFilesBtn">&#128196; ファイル追加</button>
+            <button class="add-btn" id="addFolderBtn">&#128193; フォルダ追加</button>
         </div>
 
         <div class="file-list" id="fileList"></div>
@@ -263,7 +283,12 @@
     const progressFill = document.getElementById('progressFill');
     const statusEl = document.getElementById('status');
 
+    // selectedFiles: { file: File, path: string }[]
     let selectedFiles = [];
+
+    const addFilesBtn = document.getElementById('addFilesBtn');
+    const addFolderBtn = document.getElementById('addFolderBtn');
+    const fileInputFiles = document.getElementById('fileInputFiles');
 
     // ドラッグ&ドロップ
     dropZone.addEventListener('dragover', e => {
@@ -271,20 +296,80 @@
         dropZone.classList.add('dragover');
     });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-    dropZone.addEventListener('drop', e => {
+    dropZone.addEventListener('drop', async e => {
         e.preventDefault();
         dropZone.classList.remove('dragover');
-        addFiles(e.dataTransfer.files);
+        const items = e.dataTransfer.items;
+        if (items) {
+            const entries = [];
+            for (const item of items) {
+                const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+                if (entry) entries.push(entry);
+            }
+            const files = [];
+            for (const entry of entries) {
+                await readEntry(entry, '', files);
+            }
+            addFiles(files);
+        }
+    });
+
+    // フォルダを再帰的に読み取る
+    function readEntry(entry, basePath, result) {
+        return new Promise(resolve => {
+            if (entry.isFile) {
+                entry.file(file => {
+                    const path = basePath ? basePath + '/' + file.name : file.name;
+                    result.push({ file, path });
+                    resolve();
+                });
+            } else if (entry.isDirectory) {
+                const dirPath = basePath ? basePath + '/' + entry.name : entry.name;
+                const reader = entry.createReader();
+                const readAll = (allEntries) => {
+                    reader.readEntries(async entries => {
+                        if (entries.length === 0) {
+                            for (const e of allEntries) {
+                                await readEntry(e, dirPath, result);
+                            }
+                            resolve();
+                        } else {
+                            readAll(allEntries.concat(Array.from(entries)));
+                        }
+                    });
+                };
+                readAll([]);
+            } else {
+                resolve();
+            }
+        });
+    }
+
+    // ボタンによるファイル/フォルダ追加
+    addFilesBtn.addEventListener('click', () => {
+        fileInputFiles.click();
+    });
+    fileInputFiles.addEventListener('change', () => {
+        const files = Array.from(fileInputFiles.files).map(f => ({ file: f, path: f.name }));
+        addFiles(files);
+        fileInputFiles.value = '';
+    });
+    addFolderBtn.addEventListener('click', () => {
+        fileInput.click();
     });
     fileInput.addEventListener('change', () => {
-        addFiles(fileInput.files);
+        const files = Array.from(fileInput.files).map(f => ({
+            file: f,
+            path: f.webkitRelativePath || f.name
+        }));
+        addFiles(files);
         fileInput.value = '';
     });
 
-    function addFiles(fileListObj) {
-        for (const f of fileListObj) {
-            if (!selectedFiles.some(sf => sf.name === f.name && sf.size === f.size)) {
-                selectedFiles.push(f);
+    function addFiles(fileEntries) {
+        for (const entry of fileEntries) {
+            if (!selectedFiles.some(sf => sf.path === entry.path && sf.file.size === entry.file.size)) {
+                selectedFiles.push(entry);
             }
         }
         renderFileList();
@@ -303,11 +388,15 @@
         return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
+    function escapeHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     function renderFileList() {
-        fileListEl.innerHTML = selectedFiles.map((f, i) =>
+        fileListEl.innerHTML = selectedFiles.map((entry, i) =>
             `<div class="file-item">
-                <span class="name" title="${f.name}">${f.name}</span>
-                <span class="size">${formatSize(f.size)}</span>
+                <span class="name" title="${escapeHtml(entry.path)}">${escapeHtml(entry.path)}</span>
+                <span class="size">${formatSize(entry.file.size)}</span>
                 <button class="remove-btn" onclick="removeFile(${i})" title="削除">&times;</button>
             </div>`
         ).join('');
@@ -348,8 +437,8 @@
             );
 
             for (let i = 0; i < selectedFiles.length; i++) {
-                const file = selectedFiles[i];
-                await zipWriter.add(file.name, new zip.BlobReader(file));
+                const entry = selectedFiles[i];
+                await zipWriter.add(entry.path, new zip.BlobReader(entry.file));
                 const pct = Math.round(((i + 1) / selectedFiles.length) * 100);
                 progressFill.style.width = pct + '%';
                 statusEl.textContent = `処理中... (${i + 1}/${selectedFiles.length})`;
