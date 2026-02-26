@@ -203,6 +203,12 @@
     let selectedIds = new Set();
     let nextId = 1;
     let draggedId = null;
+    const thumbCache = new Map(); // id -> { key, dataURL, width, height, cropHTML }
+
+    function thumbCacheKey(p) {
+        const cropStr = p.crop ? `${p.crop.left},${p.crop.top},${p.crop.right},${p.crop.bottom}` : '';
+        return `${p.pageIndex}:${p.rotation}:${cropStr}`;
+    }
 
     const fileInput = document.getElementById('fileInput');
     const pageGrid = document.getElementById('pageGrid');
@@ -340,14 +346,33 @@
 
             pageGrid.appendChild(card);
 
-            // Render thumbnail async
-            renderThumb(card.querySelector('canvas'), p);
+            // Use cached thumbnail or render new one
+            const cacheKey = thumbCacheKey(p);
+            const cached = thumbCache.get(p.id);
+            if (cached && cached.key === cacheKey) {
+                applyCachedThumb(card, cached);
+            } else {
+                renderThumb(card.querySelector('canvas'), p);
+            }
         }
 
         updateToolbarState();
     }
 
     // ===== Render Thumbnail =====
+    function applyCachedThumb(card, cached) {
+        const thumb = card.querySelector('.page-thumb');
+        thumb.innerHTML = '';
+        const img = new Image();
+        img.src = cached.dataURL;
+        img.width = cached.width;
+        img.height = cached.height;
+        thumb.appendChild(img);
+        if (cached.cropHTML) {
+            thumb.insertAdjacentHTML('beforeend', cached.cropHTML);
+        }
+    }
+
     async function renderThumb(canvas, pageData) {
         try {
             const pdf = await pdfjsLib.getDocument({ data: pageData.pdfBytes.slice() }).promise;
@@ -362,6 +387,8 @@
 
             await page.render({ canvasContext: ctx, viewport }).promise;
 
+            let cropHTML = '';
+
             // Draw crop indicator
             if (pageData.crop) {
                 const origPage = await pdf.getPage(pageData.pageIndex + 1);
@@ -370,12 +397,6 @@
                 const sy = viewport.height / origVp.height;
                 const c = pageData.crop;
 
-                // Apply rotation transform to crop coordinates for visual indicator
-                const cropOverlay = canvas.parentElement.querySelector('.crop-indicator');
-                if (cropOverlay) cropOverlay.remove();
-
-                const div = document.createElement('div');
-                div.className = 'crop-indicator';
                 const rot = ((pageData.rotation % 360) + 360) % 360;
                 let cl, ct, cw, ch;
                 if (rot === 0) {
@@ -395,9 +416,19 @@
                     cw = viewport.width - (c.top + c.bottom) * sx;
                     ch = viewport.height - (c.left + c.right) * sy;
                 }
-                div.style.cssText = `left:${cl}px;top:${ct}px;width:${cw}px;height:${ch}px`;
-                canvas.parentElement.appendChild(div);
+                cropHTML = `<div class="crop-indicator" style="left:${cl}px;top:${ct}px;width:${cw}px;height:${ch}px"></div>`;
+                canvas.parentElement.insertAdjacentHTML('beforeend', cropHTML);
             }
+
+            // Cache the rendered thumbnail
+            const dataURL = canvas.toDataURL();
+            thumbCache.set(pageData.id, {
+                key: thumbCacheKey(pageData),
+                dataURL,
+                width: canvas.width,
+                height: canvas.height,
+                cropHTML
+            });
 
             pdf.destroy();
         } catch (e) {
@@ -480,6 +511,7 @@
     window.deleteSelected = function() {
         if (selectedIds.size === 0) return;
         const count = selectedIds.size;
+        selectedIds.forEach(id => thumbCache.delete(id));
         pages = pages.filter(p => !selectedIds.has(p.id));
         selectedIds.clear();
         renderGrid();
