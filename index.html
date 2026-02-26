@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyTools</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f7f9; min-height: 100vh; padding: 40px 20px; }
+        .container { max-width: 640px; margin: 0 auto; }
+        h1 { font-size: 1.6rem; color: #333; margin-bottom: 8px; }
+        .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 24px; }
+        .card { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
+        .card a { display: flex; align-items: center; gap: 14px; padding: 16px 20px; text-decoration: none; color: #333; border-bottom: 1px solid #f0f0f0; transition: background 0.15s; }
+        .card a:last-child { border-bottom: none; }
+        .card a:hover { background: #f8f9ff; }
+        .icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+        .icon-pdf { background: #ffe8ec; }
+        .icon-zip { background: #e8f5e9; }
+        .icon-print { background: #e3f2fd; }
+        .icon-other { background: #f3e5f5; }
+        .tool-info { flex: 1; min-width: 0; }
+        .tool-name { font-weight: 600; font-size: 0.95rem; }
+        .tool-file { color: #aaa; font-size: 0.75rem; margin-top: 2px; }
+        .arrow { color: #ccc; font-size: 1.2rem; }
+        footer { text-align: center; margin-top: 24px; color: #bbb; font-size: 0.75rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>MyTools</h1>
+    <p class="subtitle">ブラウザで完結するオフラインツール集</p>
+    <div class="card">
+        <a href="labelprint.html">
+            <div class="icon icon-print">🏷️</div>
+            <div class="tool-info">
+                <div class="tool-name">インデックスラベル印刷</div>
+                <div class="tool-file">labelprint.html</div>
+            </div>
+            <div class="arrow">›</div>
+        </a>
+        <a href="pdf-arrangement.html">
+            <div class="icon icon-pdf">📄</div>
+            <div class="tool-info">
+                <div class="tool-name">PDF結合 & 最適化ツール (A4 2in1)</div>
+                <div class="tool-file">pdf-arrangement.html</div>
+            </div>
+            <div class="arrow">›</div>
+        </a>
+        <a href="pdf-editor.html">
+            <div class="icon icon-pdf">📄</div>
+            <div class="tool-info">
+                <div class="tool-name">PDF Editor</div>
+                <div class="tool-file">pdf-editor.html</div>
+            </div>
+            <div class="arrow">›</div>
+        </a>
+        <a href="pdf-join.html">
+            <div class="icon icon-pdf">📄</div>
+            <div class="tool-info">
+                <div class="tool-name">Quick PDF Merger</div>
+                <div class="tool-file">pdf-join.html</div>
+            </div>
+            <div class="arrow">›</div>
+        </a>
+        <a href="pdf-split.html">
+            <div class="icon icon-pdf">📄</div>
+            <div class="tool-info">
+                <div class="tool-name">PDF Splitter to ZIP</div>
+                <div class="tool-file">pdf-split.html</div>
+            </div>
+            <div class="arrow">›</div>
+        </a>
+        <a href="zip-encrypt.html">
+            <div class="icon icon-zip">📦</div>
+            <div class="tool-info">
+                <div class="tool-name">パスワード付きZIP作成</div>
+                <div class="tool-file">zip-encrypt.html</div>
+            </div>
+            <div class="arrow">›</div>
+        </a>
+    </div>
+    <footer>Last updated: 2026-02-26 15:16 JST</footer>
+</div>
+</body>
+</html>
