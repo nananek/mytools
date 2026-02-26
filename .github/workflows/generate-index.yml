@@ -1,0 +1,105 @@
+name: Generate Index Page
+
+on:
+  push:
+    branches: [main]
+    paths: ['*.html']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate index.html
+        run: |
+          cat > index.html << 'HEADER'
+          <!DOCTYPE html>
+          <html lang="ja">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>MyTools</title>
+              <style>
+                  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+                  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f7f9; min-height: 100vh; padding: 40px 20px; }
+                  .container { max-width: 640px; margin: 0 auto; }
+                  h1 { font-size: 1.6rem; color: #333; margin-bottom: 8px; }
+                  .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 24px; }
+                  .card { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
+                  .card a { display: flex; align-items: center; gap: 14px; padding: 16px 20px; text-decoration: none; color: #333; border-bottom: 1px solid #f0f0f0; transition: background 0.15s; }
+                  .card a:last-child { border-bottom: none; }
+                  .card a:hover { background: #f8f9ff; }
+                  .icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+                  .icon-pdf { background: #ffe8ec; }
+                  .icon-zip { background: #e8f5e9; }
+                  .icon-print { background: #e3f2fd; }
+                  .icon-other { background: #f3e5f5; }
+                  .tool-info { flex: 1; min-width: 0; }
+                  .tool-name { font-weight: 600; font-size: 0.95rem; }
+                  .tool-file { color: #aaa; font-size: 0.75rem; margin-top: 2px; }
+                  .arrow { color: #ccc; font-size: 1.2rem; }
+                  footer { text-align: center; margin-top: 24px; color: #bbb; font-size: 0.75rem; }
+              </style>
+          </head>
+          <body>
+          <div class="container">
+              <h1>MyTools</h1>
+              <p class="subtitle">ブラウザで完結するオフラインツール集</p>
+              <div class="card">
+          HEADER
+
+          # Collect tool entries from HTML files (exclude index.html)
+          for f in *.html; do
+            [ "$f" = "index.html" ] && continue
+            title=$(grep -oP '(?<=<title>).*(?=</title>)' "$f" | head -1)
+            [ -z "$title" ] && title="$f"
+
+            # Determine icon based on filename
+            if echo "$f" | grep -qi "pdf"; then
+              icon_class="icon-pdf"
+              icon_emoji="📄"
+            elif echo "$f" | grep -qi "zip"; then
+              icon_class="icon-zip"
+              icon_emoji="📦"
+            elif echo "$f" | grep -qi "label\|print"; then
+              icon_class="icon-print"
+              icon_emoji="🏷️"
+            else
+              icon_class="icon-other"
+              icon_emoji="🔧"
+            fi
+
+            cat >> index.html << ENTRY
+                  <a href="$f">
+                      <div class="icon $icon_class">$icon_emoji</div>
+                      <div class="tool-info">
+                          <div class="tool-name">$title</div>
+                          <div class="tool-file">$f</div>
+                      </div>
+                      <div class="arrow">›</div>
+                  </a>
+          ENTRY
+          done
+
+          GENERATED_AT=$(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M JST')
+          cat >> index.html << FOOTER
+              </div>
+              <footer>Last updated: $GENERATED_AT</footer>
+          </div>
+          </body>
+          </html>
+          FOOTER
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "Auto-generate index.html"
+          git push
