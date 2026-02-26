@@ -392,10 +392,16 @@
                 toggleSelect(p.id, e.shiftKey);
             });
 
-            // Right-click to preview
+            // Right-click to preview + select
             card.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 if (isLocked) return;
+                if (!multiSelectMode) {
+                    selectedIds.clear();
+                }
+                selectedIds.add(p.id);
+                lastSelectedIndex = pages.findIndex(pg => pg.id === p.id);
+                renderGrid();
                 openPreview(p);
             });
 
