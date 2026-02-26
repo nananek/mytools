@@ -27,6 +27,8 @@
         .btn-success:hover { background: #1e7e34; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+        .btn-toggle { background: #0f3460; color: #e0e0e0; }
+        .btn-toggle.active { background: #e94560; color: white; }
 
         /* Toolbar */
         .toolbar { background: #16213e; padding: 8px 24px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #0f3460; flex-wrap: wrap; }
@@ -114,6 +116,7 @@
 </div>
 
 <div class="toolbar" id="toolbar" style="display:none">
+    <button class="btn btn-sm btn-toggle" id="multiSelectBtn" onclick="toggleMultiSelect()" title="複数選択モード">☐ 複数選択</button>
     <button class="btn btn-sm btn-secondary" onclick="selectAll()" title="全選択">全選択</button>
     <button class="btn btn-sm btn-secondary" onclick="deselectAll()" title="選択解除">選択解除</button>
     <div class="separator"></div>
@@ -297,7 +300,7 @@
             if (p.crop) badges.push('トリミング済');
 
             card.innerHTML = `
-                <input type="checkbox" class="page-checkbox" ${selectedIds.has(p.id) ? 'checked' : ''}>
+                ${multiSelectMode ? `<input type="checkbox" class="page-checkbox" ${selectedIds.has(p.id) ? 'checked' : ''}>` : ''}
                 <div class="page-thumb"><canvas></canvas></div>
                 ${badges.length ? `<div class="page-badge">${badges.map(b => `<span class="badge">${b}</span>`).join('')}</div>` : ''}
                 <div class="page-info">
@@ -306,12 +309,14 @@
                 </div>
             `;
 
-            // Checkbox
+            // Checkbox (multi-select mode only)
             const checkbox = card.querySelector('.page-checkbox');
-            checkbox.addEventListener('click', (e) => {
-                e.stopPropagation();
-                toggleSelect(p.id, e.shiftKey);
-            });
+            if (checkbox) {
+                checkbox.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleSelect(p.id, e.shiftKey);
+                });
+            }
 
             // Click to select
             card.addEventListener('click', (e) => {
@@ -437,23 +442,52 @@
     }
 
     // ===== Selection =====
+    let multiSelectMode = false;
     let lastSelectedIndex = -1;
+
+    window.toggleMultiSelect = function() {
+        multiSelectMode = !multiSelectMode;
+        const btn = document.getElementById('multiSelectBtn');
+        btn.classList.toggle('active', multiSelectMode);
+        btn.textContent = multiSelectMode ? '☑ 複数選択' : '☐ 複数選択';
+        if (!multiSelectMode && selectedIds.size > 1) {
+            // Keep only the last selected
+            const lastId = [...selectedIds].pop();
+            selectedIds.clear();
+            selectedIds.add(lastId);
+            renderGrid();
+        }
+    };
 
     function toggleSelect(id, shift) {
         const idx = pages.findIndex(p => p.id === id);
-        if (shift && lastSelectedIndex >= 0) {
-            const start = Math.min(lastSelectedIndex, idx);
-            const end = Math.max(lastSelectedIndex, idx);
-            for (let i = start; i <= end; i++) selectedIds.add(pages[i].id);
+        if (multiSelectMode) {
+            if (shift && lastSelectedIndex >= 0) {
+                const start = Math.min(lastSelectedIndex, idx);
+                const end = Math.max(lastSelectedIndex, idx);
+                for (let i = start; i <= end; i++) selectedIds.add(pages[i].id);
+            } else {
+                if (selectedIds.has(id)) selectedIds.delete(id);
+                else selectedIds.add(id);
+            }
         } else {
-            if (selectedIds.has(id)) selectedIds.delete(id);
-            else selectedIds.add(id);
+            // Single select mode: replace selection
+            if (selectedIds.has(id) && selectedIds.size === 1) {
+                selectedIds.clear();
+            } else {
+                selectedIds.clear();
+                selectedIds.add(id);
+            }
         }
         lastSelectedIndex = idx;
         renderGrid();
     }
 
     window.selectAll = function() {
+        multiSelectMode = true;
+        const btn = document.getElementById('multiSelectBtn');
+        btn.classList.add('active');
+        btn.textContent = '☑ 複数選択';
         pages.forEach(p => selectedIds.add(p.id));
         renderGrid();
     };
