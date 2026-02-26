@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Editor</title>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs" type="module"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; }
+
+        /* Header */
+        .header { background: #16213e; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #0f3460; position: sticky; top: 0; z-index: 100; }
+        .header h1 { font-size: 1.2rem; color: #e94560; }
+        .header-info { font-size: 0.75rem; color: #888; }
+        .header-actions { display: flex; gap: 8px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: #e94560; color: white; }
+        .btn-primary:hover { background: #c73652; }
+        .btn-secondary { background: #0f3460; color: #e0e0e0; }
+        .btn-secondary:hover { background: #1a4a8a; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #b02a37; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #1e7e34; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+
+        /* Toolbar */
+        .toolbar { background: #16213e; padding: 8px 24px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #0f3460; flex-wrap: wrap; }
+        .toolbar .separator { width: 1px; height: 24px; background: #0f3460; margin: 0 4px; }
+        .selection-info { font-size: 0.8rem; color: #aaa; margin-left: auto; }
+
+        /* Drop zone */
+        .drop-overlay { display: none; position: fixed; inset: 0; background: rgba(233, 69, 96, 0.15); border: 4px dashed #e94560; z-index: 200; justify-content: center; align-items: center; font-size: 1.5rem; color: #e94560; font-weight: bold; }
+        .drop-overlay.active { display: flex; }
+
+        /* Empty state */
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 70vh; color: #666; }
+        .empty-state .icon { font-size: 4rem; margin-bottom: 16px; }
+        .empty-state p { margin-bottom: 8px; }
+        .empty-state label { cursor: pointer; }
+
+        /* Page grid */
+        .page-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; padding: 24px; }
+        .page-card { background: #16213e; border-radius: 8px; overflow: hidden; cursor: grab; transition: all 0.2s; position: relative; border: 2px solid transparent; user-select: none; }
+        .page-card:hover { border-color: #0f3460; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .page-card.selected { border-color: #e94560; box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.3); }
+        .page-card.dragging { opacity: 0.4; }
+        .page-card.drag-over { border-color: #28a745; border-style: dashed; }
+        .page-thumb { width: 100%; aspect-ratio: 210/297; background: white; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+        .page-thumb canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .page-thumb .crop-indicator { position: absolute; border: 2px dashed #e94560; pointer-events: none; background: rgba(233, 69, 96, 0.08); }
+        .page-info { padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; }
+        .page-number { color: #aaa; }
+        .page-source { color: #666; font-size: 0.65rem; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .page-badge { position: absolute; top: 6px; right: 6px; display: flex; gap: 3px; }
+        .badge { background: rgba(0,0,0,0.6); color: white; font-size: 0.6rem; padding: 2px 5px; border-radius: 3px; }
+        .page-checkbox { position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; cursor: pointer; z-index: 10; accent-color: #e94560; }
+
+        /* Crop modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 300; justify-content: center; align-items: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: #16213e; border-radius: 12px; padding: 24px; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto; }
+        .modal h2 { font-size: 1.1rem; margin-bottom: 16px; color: #e94560; }
+        .crop-container { position: relative; display: inline-block; margin: 0 auto; cursor: crosshair; }
+        .crop-container canvas { display: block; max-width: 100%; }
+        .crop-box { position: absolute; border: 2px solid #e94560; background: rgba(233, 69, 96, 0.1); cursor: move; }
+        .crop-handle { position: absolute; width: 10px; height: 10px; background: #e94560; border-radius: 50%; }
+        .crop-handle.tl { top: -5px; left: -5px; cursor: nw-resize; }
+        .crop-handle.tr { top: -5px; right: -5px; cursor: ne-resize; }
+        .crop-handle.bl { bottom: -5px; left: -5px; cursor: sw-resize; }
+        .crop-handle.br { bottom: -5px; right: -5px; cursor: se-resize; }
+        .crop-inputs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+        .crop-input-group label { display: block; font-size: 0.7rem; color: #888; margin-bottom: 4px; }
+        .crop-input-group input { width: 100%; padding: 6px 8px; background: #1a1a2e; border: 1px solid #0f3460; color: #e0e0e0; border-radius: 4px; font-size: 0.85rem; }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .crop-preview-wrap { text-align: center; overflow: auto; max-height: 60vh; }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 10px 20px; border-radius: 8px; font-size: 0.85rem; z-index: 400; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .toast.show { opacity: 1; }
+
+        /* Progress */
+        .progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: #e94560; z-index: 500; transition: width 0.3s; }
+
+        @media (max-width: 600px) {
+            .page-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; padding: 12px; }
+            .toolbar { padding: 8px 12px; }
+            .header { padding: 10px 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar" style="width:0%"></div>
+
+<div class="header">
+    <div>
+        <h1>PDF Editor</h1>
+        <div class="header-info">※ブラウザ内で処理。ファイルはサーバーに送信されません。</div>
+    </div>
+    <div class="header-actions">
+        <label class="btn btn-secondary" for="fileInput">
+            <span>📂</span> PDF追加
+        </label>
+        <input type="file" id="fileInput" multiple accept="application/pdf" style="display:none">
+        <button class="btn btn-success" id="saveBtn" disabled onclick="savePDF()">
+            <span>💾</span> 保存
+        </button>
+    </div>
+</div>
+
+<div class="toolbar" id="toolbar" style="display:none">
+    <button class="btn btn-sm btn-secondary" onclick="selectAll()" title="全選択">全選択</button>
+    <button class="btn btn-sm btn-secondary" onclick="deselectAll()" title="選択解除">選択解除</button>
+    <div class="separator"></div>
+    <button class="btn btn-sm btn-secondary" id="rotLeftBtn" onclick="rotateSelected(-90)" disabled title="左回転">↶ 左回転</button>
+    <button class="btn btn-sm btn-secondary" id="rotRightBtn" onclick="rotateSelected(90)" disabled title="右回転">↷ 右回転</button>
+    <div class="separator"></div>
+    <button class="btn btn-sm btn-secondary" id="cropBtn" onclick="openCropModal()" disabled title="トリミング">✂ トリミング</button>
+    <div class="separator"></div>
+    <button class="btn btn-sm btn-danger" id="deleteBtn" onclick="deleteSelected()" disabled title="削除">🗑 削除</button>
+    <div class="selection-info" id="selectionInfo"></div>
+</div>
+
+<div class="empty-state" id="emptyState">
+    <div class="icon">📄</div>
+    <p>PDFファイルをドラッグ＆ドロップ</p>
+    <p style="font-size:0.85rem; margin-bottom:16px">または</p>
+    <label class="btn btn-primary" for="fileInput">ファイルを選択</label>
+</div>
+
+<div class="page-grid" id="pageGrid" style="display:none"></div>
+
+<div class="drop-overlay" id="dropOverlay">📄 PDFをドロップして追加</div>
+
+<!-- Crop Modal -->
+<div class="modal-overlay" id="cropModal">
+    <div class="modal">
+        <h2>✂ ページトリミング</h2>
+        <div class="crop-preview-wrap">
+            <div class="crop-container" id="cropContainer">
+                <canvas id="cropCanvas"></canvas>
+                <div class="crop-box" id="cropBox">
+                    <div class="crop-handle tl" data-handle="tl"></div>
+                    <div class="crop-handle tr" data-handle="tr"></div>
+                    <div class="crop-handle bl" data-handle="bl"></div>
+                    <div class="crop-handle br" data-handle="br"></div>
+                </div>
+            </div>
+        </div>
+        <div class="crop-inputs">
+            <div class="crop-input-group">
+                <label>左 (mm)</label>
+                <input type="number" id="cropLeft" min="0" step="1" oninput="onCropInputChange()">
+            </div>
+            <div class="crop-input-group">
+                <label>上 (mm)</label>
+                <input type="number" id="cropTop" min="0" step="1" oninput="onCropInputChange()">
+            </div>
+            <div class="crop-input-group">
+                <label>右 (mm)</label>
+                <input type="number" id="cropRight" min="0" step="1" oninput="onCropInputChange()">
+            </div>
+            <div class="crop-input-group">
+                <label>下 (mm)</label>
+                <input type="number" id="cropBottom" min="0" step="1" oninput="onCropInputChange()">
+            </div>
+        </div>
+        <div style="margin-top:8px">
+            <label style="font-size:0.8rem; color:#aaa">
+                <input type="checkbox" id="cropApplyAll"> 選択中の全ページに適用
+            </label>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeCropModal()">キャンセル</button>
+            <button class="btn btn-primary" onclick="applyCrop()">トリミング適用</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+    // PDF.js setup
+    const pdfjsLib = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.mjs';
+    window.pdfjsLib = pdfjsLib;
+    window.appReady = true;
+    // If files were queued before ready, process them
+    if (window._queuedFiles) {
+        for (const f of window._queuedFiles) await window.loadPDF(f);
+        window._queuedFiles = null;
+    }
+</script>
+
+<script>
+    // ===== State =====
+    let pages = []; // { id, pdfBytes, pageIndex, rotation, crop, sourceName, originalWidth, originalHeight }
+    let selectedIds = new Set();
+    let nextId = 1;
+    let draggedId = null;
+
+    const fileInput = document.getElementById('fileInput');
+    const pageGrid = document.getElementById('pageGrid');
+    const emptyState = document.getElementById('emptyState');
+    const toolbar = document.getElementById('toolbar');
+    const saveBtn = document.getElementById('saveBtn');
+    const progressBar = document.getElementById('progressBar');
+
+    // ===== File Input =====
+    fileInput.addEventListener('change', async (e) => {
+        for (const file of e.target.files) {
+            await loadPDF(file);
+        }
+        fileInput.value = '';
+    });
+
+    // ===== Drag & Drop Files =====
+    const dropOverlay = document.getElementById('dropOverlay');
+    let dragCounter = 0;
+    document.addEventListener('dragenter', (e) => { e.preventDefault(); dragCounter++; dropOverlay.classList.add('active'); });
+    document.addEventListener('dragleave', (e) => { e.preventDefault(); dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dropOverlay.classList.remove('active'); } });
+    document.addEventListener('dragover', (e) => e.preventDefault());
+    document.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        dragCounter = 0;
+        dropOverlay.classList.remove('active');
+        const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+        for (const file of files) await loadPDF(file);
+    });
+
+    // ===== Load PDF =====
+    window.loadPDF = async function loadPDF(file) {
+        if (!window.appReady) {
+            window._queuedFiles = window._queuedFiles || [];
+            window._queuedFiles.push(file);
+            return;
+        }
+        showProgress(10);
+        const arrayBuffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+
+        // Parse with pdf-lib to get page info
+        const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+        const count = pdfDoc.getPageCount();
+
+        for (let i = 0; i < count; i++) {
+            const page = pdfDoc.getPage(i);
+            const { width, height } = page.getSize();
+            pages.push({
+                id: nextId++,
+                pdfBytes: bytes,
+                pageIndex: i,
+                rotation: 0,
+                crop: null, // { left, top, right, bottom } in PDF points
+                sourceName: file.name,
+                originalWidth: width,
+                originalHeight: height
+            });
+            showProgress(10 + (i / count) * 80);
+        }
+
+        showProgress(100);
+        setTimeout(() => showProgress(0), 500);
+        showToast(`${file.name} を読み込みました (${count}ページ)`);
+        renderGrid();
+    }
+
+    // ===== Render Grid =====
+    async function renderGrid() {
+        const hasPages = pages.length > 0;
+        emptyState.style.display = hasPages ? 'none' : 'flex';
+        pageGrid.style.display = hasPages ? 'grid' : 'none';
+        toolbar.style.display = hasPages ? 'flex' : 'none';
+        saveBtn.disabled = !hasPages;
+
+        pageGrid.innerHTML = '';
+        for (let i = 0; i < pages.length; i++) {
+            const p = pages[i];
+            const card = document.createElement('div');
+            card.className = 'page-card' + (selectedIds.has(p.id) ? ' selected' : '');
+            card.dataset.id = p.id;
+            card.draggable = true;
+
+            const badges = [];
+            if (p.rotation !== 0) badges.push(`${p.rotation}°`);
+            if (p.crop) badges.push('トリミング済');
+
+            card.innerHTML = `
+                <input type="checkbox" class="page-checkbox" ${selectedIds.has(p.id) ? 'checked' : ''}>
+                <div class="page-thumb"><canvas></canvas></div>
+                ${badges.length ? `<div class="page-badge">${badges.map(b => `<span class="badge">${b}</span>`).join('')}</div>` : ''}
+                <div class="page-info">
+                    <span class="page-number">${i + 1} / ${pages.length}</span>
+                    <span class="page-source" title="${p.sourceName}">${p.sourceName}</span>
+                </div>
+            `;
+
+            // Checkbox
+            const checkbox = card.querySelector('.page-checkbox');
+            checkbox.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleSelect(p.id, e.shiftKey);
+            });
+
+            // Click to select
+            card.addEventListener('click', (e) => {
+                if (e.target === checkbox) return;
+                toggleSelect(p.id, e.shiftKey);
+            });
+
+            // Drag events for reorder
+            card.addEventListener('dragstart', (e) => {
+                draggedId = p.id;
+                card.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+                draggedId = null;
+                document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+            });
+            card.addEventListener('dragover', (e) => {
+                if (draggedId === null) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                card.classList.add('drag-over');
+            });
+            card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+            card.addEventListener('drop', (e) => {
+                e.preventDefault();
+                card.classList.remove('drag-over');
+                if (draggedId === null || draggedId === p.id) return;
+                reorderPage(draggedId, p.id);
+            });
+
+            pageGrid.appendChild(card);
+
+            // Render thumbnail async
+            renderThumb(card.querySelector('canvas'), p);
+        }
+
+        updateToolbarState();
+    }
+
+    // ===== Render Thumbnail =====
+    async function renderThumb(canvas, pageData) {
+        try {
+            const pdf = await pdfjsLib.getDocument({ data: pageData.pdfBytes.slice() }).promise;
+            const page = await pdf.getPage(pageData.pageIndex + 1);
+            const vp = page.getViewport({ scale: 1, rotation: pageData.rotation });
+            const scale = 200 / Math.max(vp.width, vp.height);
+            const viewport = page.getViewport({ scale, rotation: pageData.rotation });
+
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            const ctx = canvas.getContext('2d');
+
+            await page.render({ canvasContext: ctx, viewport }).promise;
+
+            // Draw crop indicator
+            if (pageData.crop) {
+                const origPage = await pdf.getPage(pageData.pageIndex + 1);
+                const origVp = origPage.getViewport({ scale: 1 });
+                const sx = viewport.width / origVp.width;
+                const sy = viewport.height / origVp.height;
+                const c = pageData.crop;
+
+                // Apply rotation transform to crop coordinates for visual indicator
+                const cropOverlay = canvas.parentElement.querySelector('.crop-indicator');
+                if (cropOverlay) cropOverlay.remove();
+
+                const div = document.createElement('div');
+                div.className = 'crop-indicator';
+                const rot = ((pageData.rotation % 360) + 360) % 360;
+                let cl, ct, cw, ch;
+                if (rot === 0) {
+                    cl = c.left * sx; ct = c.top * sy;
+                    cw = viewport.width - (c.left + c.right) * sx;
+                    ch = viewport.height - (c.top + c.bottom) * sy;
+                } else if (rot === 90) {
+                    cl = c.top * sx; ct = c.right * sy;
+                    cw = viewport.width - (c.top + c.bottom) * sx;
+                    ch = viewport.height - (c.left + c.right) * sy;
+                } else if (rot === 180) {
+                    cl = c.right * sx; ct = c.bottom * sy;
+                    cw = viewport.width - (c.left + c.right) * sx;
+                    ch = viewport.height - (c.top + c.bottom) * sy;
+                } else {
+                    cl = c.bottom * sx; ct = c.left * sy;
+                    cw = viewport.width - (c.top + c.bottom) * sx;
+                    ch = viewport.height - (c.left + c.right) * sy;
+                }
+                div.style.cssText = `left:${cl}px;top:${ct}px;width:${cw}px;height:${ch}px`;
+                canvas.parentElement.appendChild(div);
+            }
+
+            pdf.destroy();
+        } catch (e) {
+            console.error('Thumbnail render error:', e);
+        }
+    }
+
+    // ===== Selection =====
+    let lastSelectedIndex = -1;
+
+    function toggleSelect(id, shift) {
+        const idx = pages.findIndex(p => p.id === id);
+        if (shift && lastSelectedIndex >= 0) {
+            const start = Math.min(lastSelectedIndex, idx);
+            const end = Math.max(lastSelectedIndex, idx);
+            for (let i = start; i <= end; i++) selectedIds.add(pages[i].id);
+        } else {
+            if (selectedIds.has(id)) selectedIds.delete(id);
+            else selectedIds.add(id);
+        }
+        lastSelectedIndex = idx;
+        renderGrid();
+    }
+
+    window.selectAll = function() {
+        pages.forEach(p => selectedIds.add(p.id));
+        renderGrid();
+    };
+
+    window.deselectAll = function() {
+        selectedIds.clear();
+        renderGrid();
+    };
+
+    function updateToolbarState() {
+        const count = selectedIds.size;
+        const hasSelection = count > 0;
+        document.getElementById('rotLeftBtn').disabled = !hasSelection;
+        document.getElementById('rotRightBtn').disabled = !hasSelection;
+        document.getElementById('cropBtn').disabled = !hasSelection;
+        document.getElementById('deleteBtn').disabled = !hasSelection;
+        document.getElementById('selectionInfo').textContent = hasSelection ? `${count}ページ選択中` : '';
+    }
+
+    // ===== Reorder =====
+    function reorderPage(fromId, toId) {
+        const fromIdx = pages.findIndex(p => p.id === fromId);
+        const toIdx = pages.findIndex(p => p.id === toId);
+        if (fromIdx < 0 || toIdx < 0) return;
+
+        // If multiple selected and dragged is part of selection, move all selected
+        if (selectedIds.has(fromId) && selectedIds.size > 1) {
+            const selectedPages = pages.filter(p => selectedIds.has(p.id));
+            const remaining = pages.filter(p => !selectedIds.has(p.id));
+            const insertIdx = remaining.findIndex(p => p.id === toId);
+            if (insertIdx >= 0) {
+                remaining.splice(insertIdx, 0, ...selectedPages);
+                pages = remaining;
+            }
+        } else {
+            const [moved] = pages.splice(fromIdx, 1);
+            const newToIdx = pages.findIndex(p => p.id === toId);
+            pages.splice(newToIdx, 0, moved);
+        }
+        renderGrid();
+    }
+
+    // ===== Rotate =====
+    window.rotateSelected = function(degrees) {
+        pages.forEach(p => {
+            if (selectedIds.has(p.id)) {
+                p.rotation = ((p.rotation + degrees) % 360 + 360) % 360;
+            }
+        });
+        renderGrid();
+        showToast(`${selectedIds.size}ページを回転しました`);
+    };
+
+    // ===== Delete =====
+    window.deleteSelected = function() {
+        if (selectedIds.size === 0) return;
+        const count = selectedIds.size;
+        pages = pages.filter(p => !selectedIds.has(p.id));
+        selectedIds.clear();
+        renderGrid();
+        showToast(`${count}ページを削除しました`);
+    };
+
+    // ===== Crop Modal =====
+    let cropTargetId = null;
+    let cropScale = 1;
+    let cropPageWidth = 0, cropPageHeight = 0;
+    let isDraggingCrop = false, cropDragType = null, cropStartX = 0, cropStartY = 0;
+    let cropRect = { x: 0, y: 0, w: 0, h: 0 };
+
+    window.openCropModal = async function() {
+        if (selectedIds.size === 0) return;
+        cropTargetId = [...selectedIds][0];
+        const pageData = pages.find(p => p.id === cropTargetId);
+        if (!pageData) return;
+
+        const modal = document.getElementById('cropModal');
+        modal.classList.add('active');
+
+        const canvas = document.getElementById('cropCanvas');
+        const pdf = await pdfjsLib.getDocument({ data: pageData.pdfBytes.slice() }).promise;
+        const page = await pdf.getPage(pageData.pageIndex + 1);
+        const vp = page.getViewport({ scale: 1 });
+
+        cropPageWidth = vp.width;
+        cropPageHeight = vp.height;
+        cropScale = Math.min(600 / vp.width, 500 / vp.height, 1.5);
+
+        const viewport = page.getViewport({ scale: cropScale });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        pdf.destroy();
+
+        // Init crop rect from existing crop or full page
+        const c = pageData.crop || { left: 0, top: 0, right: 0, bottom: 0 };
+        cropRect = {
+            x: c.left * cropScale,
+            y: c.top * cropScale,
+            w: (cropPageWidth - c.left - c.right) * cropScale,
+            h: (cropPageHeight - c.top - c.bottom) * cropScale
+        };
+
+        document.getElementById('cropApplyAll').checked = selectedIds.size > 1;
+        updateCropBox();
+        updateCropInputs();
+    };
+
+    window.closeCropModal = function() {
+        document.getElementById('cropModal').classList.remove('active');
+    };
+
+    function updateCropBox() {
+        const box = document.getElementById('cropBox');
+        box.style.left = cropRect.x + 'px';
+        box.style.top = cropRect.y + 'px';
+        box.style.width = cropRect.w + 'px';
+        box.style.height = cropRect.h + 'px';
+    }
+
+    function updateCropInputs() {
+        const ptToMm = 25.4 / 72;
+        document.getElementById('cropLeft').value = Math.round(cropRect.x / cropScale * ptToMm);
+        document.getElementById('cropTop').value = Math.round(cropRect.y / cropScale * ptToMm);
+        document.getElementById('cropRight').value = Math.round((cropPageWidth - (cropRect.x + cropRect.w) / cropScale) * ptToMm);
+        document.getElementById('cropBottom').value = Math.round((cropPageHeight - (cropRect.y + cropRect.h) / cropScale) * ptToMm);
+    }
+
+    window.onCropInputChange = function() {
+        const mmToPt = 72 / 25.4;
+        const l = (parseFloat(document.getElementById('cropLeft').value) || 0) * mmToPt;
+        const t = (parseFloat(document.getElementById('cropTop').value) || 0) * mmToPt;
+        const r = (parseFloat(document.getElementById('cropRight').value) || 0) * mmToPt;
+        const b = (parseFloat(document.getElementById('cropBottom').value) || 0) * mmToPt;
+        cropRect.x = l * cropScale;
+        cropRect.y = t * cropScale;
+        cropRect.w = (cropPageWidth - l - r) * cropScale;
+        cropRect.h = (cropPageHeight - t - b) * cropScale;
+        updateCropBox();
+    };
+
+    // Crop box drag interaction
+    const cropBox = document.getElementById('cropBox');
+    const cropContainer = document.getElementById('cropContainer');
+
+    cropContainer.addEventListener('mousedown', (e) => {
+        const handle = e.target.dataset?.handle;
+        if (handle || e.target === cropBox) {
+            isDraggingCrop = true;
+            cropDragType = handle || 'move';
+            cropStartX = e.clientX;
+            cropStartY = e.clientY;
+            e.preventDefault();
+        } else if (e.target.tagName === 'CANVAS') {
+            // Start new crop rect
+            const rect = cropContainer.getBoundingClientRect();
+            isDraggingCrop = true;
+            cropDragType = 'new';
+            cropStartX = e.clientX;
+            cropStartY = e.clientY;
+            cropRect.x = e.clientX - rect.left;
+            cropRect.y = e.clientY - rect.top;
+            cropRect.w = 0;
+            cropRect.h = 0;
+            updateCropBox();
+            e.preventDefault();
+        }
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDraggingCrop) return;
+        const dx = e.clientX - cropStartX;
+        const dy = e.clientY - cropStartY;
+        const canvas = document.getElementById('cropCanvas');
+        const maxW = canvas.width, maxH = canvas.height;
+
+        if (cropDragType === 'move') {
+            cropRect.x = Math.max(0, Math.min(maxW - cropRect.w, cropRect.x + dx));
+            cropRect.y = Math.max(0, Math.min(maxH - cropRect.h, cropRect.y + dy));
+        } else if (cropDragType === 'new') {
+            const rect = cropContainer.getBoundingClientRect();
+            const cx = e.clientX - rect.left;
+            const cy = e.clientY - rect.top;
+            cropRect.w = Math.max(10, Math.min(maxW - cropRect.x, cx - cropRect.x));
+            cropRect.h = Math.max(10, Math.min(maxH - cropRect.y, cy - cropRect.y));
+        } else {
+            // Handle resize
+            if (cropDragType.includes('l')) { cropRect.x = Math.max(0, cropRect.x + dx); cropRect.w = Math.max(10, cropRect.w - dx); }
+            if (cropDragType.includes('r')) { cropRect.w = Math.max(10, Math.min(maxW - cropRect.x, cropRect.w + dx)); }
+            if (cropDragType.includes('t')) { cropRect.y = Math.max(0, cropRect.y + dy); cropRect.h = Math.max(10, cropRect.h - dy); }
+            if (cropDragType.includes('b')) { cropRect.h = Math.max(10, Math.min(maxH - cropRect.y, cropRect.h + dy)); }
+        }
+
+        cropStartX = e.clientX;
+        cropStartY = e.clientY;
+        updateCropBox();
+        updateCropInputs();
+    });
+
+    document.addEventListener('mouseup', () => { isDraggingCrop = false; });
+
+    window.applyCrop = function() {
+        const crop = {
+            left: cropRect.x / cropScale,
+            top: cropRect.y / cropScale,
+            right: cropPageWidth - (cropRect.x + cropRect.w) / cropScale,
+            bottom: cropPageHeight - (cropRect.y + cropRect.h) / cropScale
+        };
+
+        // Validate: avoid negative or zero-dimension crops
+        if (crop.left < 0) crop.left = 0;
+        if (crop.top < 0) crop.top = 0;
+        if (crop.right < 0) crop.right = 0;
+        if (crop.bottom < 0) crop.bottom = 0;
+
+        const applyAll = document.getElementById('cropApplyAll').checked;
+        let count = 0;
+        pages.forEach(p => {
+            if (applyAll ? selectedIds.has(p.id) : p.id === cropTargetId) {
+                // Check if crop is essentially zero (full page)
+                if (crop.left < 1 && crop.top < 1 && crop.right < 1 && crop.bottom < 1) {
+                    p.crop = null;
+                } else {
+                    p.crop = { ...crop };
+                }
+                count++;
+            }
+        });
+
+        closeCropModal();
+        renderGrid();
+        showToast(`${count}ページをトリミングしました`);
+    };
+
+    // ===== Save PDF =====
+    window.savePDF = async function() {
+        if (pages.length === 0) return;
+        saveBtn.disabled = true;
+        showProgress(5);
+
+        try {
+            const outDoc = await PDFLib.PDFDocument.create();
+
+            for (let i = 0; i < pages.length; i++) {
+                const p = pages[i];
+                showProgress(5 + (i / pages.length) * 85);
+
+                const srcDoc = await PDFLib.PDFDocument.load(p.pdfBytes, { ignoreEncryption: true });
+                const [copiedPage] = await outDoc.copyPages(srcDoc, [p.pageIndex]);
+
+                // Apply rotation
+                if (p.rotation !== 0) {
+                    const currentRotation = copiedPage.getRotation().angle;
+                    copiedPage.setRotation(PDFLib.degrees(currentRotation + p.rotation));
+                }
+
+                // Apply crop via MediaBox adjustment
+                if (p.crop) {
+                    const { width, height } = copiedPage.getSize();
+                    const c = p.crop;
+                    // MediaBox: [left, bottom, right, top] in PDF coordinate system (origin at bottom-left)
+                    copiedPage.setMediaBox(c.left, c.bottom, width - c.left - c.right, height - c.top - c.bottom);
+                    // Also set CropBox
+                    copiedPage.setCropBox(c.left, c.bottom, width - c.left - c.right, height - c.top - c.bottom);
+                }
+
+                outDoc.addPage(copiedPage);
+            }
+
+            showProgress(92);
+            const pdfBytes = await outDoc.save();
+            showProgress(98);
+
+            // Download
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'edited.pdf';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showProgress(100);
+            setTimeout(() => showProgress(0), 500);
+            showToast('PDFを保存しました');
+        } catch (e) {
+            console.error('Save error:', e);
+            showToast('保存に失敗しました: ' + e.message);
+            showProgress(0);
+        }
+        saveBtn.disabled = false;
+    };
+
+    // ===== Keyboard Shortcuts =====
+    document.addEventListener('keydown', (e) => {
+        if (document.getElementById('cropModal').classList.contains('active')) {
+            if (e.key === 'Escape') closeCropModal();
+            return;
+        }
+        if (e.target.tagName === 'INPUT') return;
+
+        if (e.key === 'Delete' || e.key === 'Backspace') { deleteSelected(); e.preventDefault(); }
+        if (e.key === 'a' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); selectAll(); }
+        if (e.key === 'Escape') deselectAll();
+        if (e.key === 'r' && !e.ctrlKey) rotateSelected(90);
+        if (e.key === 'R' && e.shiftKey) rotateSelected(-90);
+    });
+
+    // ===== Utils =====
+    function showProgress(pct) {
+        progressBar.style.width = pct + '%';
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+</script>
+
+</body>
+</html>
