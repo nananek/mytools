@@ -47,13 +47,14 @@
 
         /* Page grid */
         .page-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; padding: 24px; }
-        .page-card { background: #16213e; border-radius: 8px; overflow: hidden; cursor: grab; transition: all 0.2s; position: relative; border: 2px solid transparent; user-select: none; }
-        .page-card:hover { border-color: #0f3460; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .page-card { background: #16213e; border-radius: 8px; overflow: hidden; cursor: grab; transition: border-color 0.15s, box-shadow 0.15s; position: relative; border: 2px solid transparent; user-select: none; }
+        .page-card:hover { border-color: #0f3460; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
         .page-card.selected { border-color: #e94560; box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.3); }
         .page-card.dragging { opacity: 0.4; }
-        .page-card.drag-over { border-color: #28a745; border-style: dashed; }
+        .page-card.drag-over-left { border-left: 4px solid #28a745; }
+        .page-card.drag-over-right { border-right: 4px solid #28a745; }
         .page-thumb { width: 100%; aspect-ratio: 210/297; background: white; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
-        .page-thumb canvas { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .page-thumb canvas, .page-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
         .page-thumb .crop-indicator { position: absolute; border: 2px dashed #e94560; pointer-events: none; background: rgba(233, 69, 96, 0.08); }
         .page-info { padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; }
         .page-number { color: #aaa; }
@@ -80,6 +81,19 @@
         .crop-input-group input { width: 100%; padding: 6px 8px; background: #1a1a2e; border: 1px solid #0f3460; color: #e0e0e0; border-radius: 4px; font-size: 0.85rem; }
         .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
         .crop-preview-wrap { text-align: center; overflow: auto; max-height: 60vh; }
+
+        /* Preview overlay */
+        .preview-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 350; justify-content: center; align-items: center; cursor: pointer; }
+        .preview-overlay.active { display: flex; }
+        .preview-overlay canvas { max-width: 90vw; max-height: 90vh; box-shadow: 0 8px 32px rgba(0,0,0,0.5); border-radius: 4px; }
+        .preview-info { position: absolute; bottom: 24px; color: #888; font-size: 0.8rem; }
+
+        /* Loading lock overlay */
+        .lock-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 250; justify-content: center; align-items: center; flex-direction: column; gap: 12px; }
+        .lock-overlay.active { display: flex; }
+        .lock-spinner { width: 40px; height: 40px; border: 4px solid #333; border-top-color: #e94560; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .lock-text { color: #ccc; font-size: 0.9rem; }
 
         /* Toast */
         .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 10px 20px; border-radius: 8px; font-size: 0.85rem; z-index: 400; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
@@ -140,6 +154,18 @@
 
 <div class="drop-overlay" id="dropOverlay">📄 PDFをドロップして追加</div>
 
+<!-- Preview overlay -->
+<div class="preview-overlay" id="previewOverlay">
+    <canvas id="previewCanvas"></canvas>
+    <div class="preview-info" id="previewInfo"></div>
+</div>
+
+<!-- Loading lock -->
+<div class="lock-overlay" id="lockOverlay">
+    <div class="lock-spinner"></div>
+    <div class="lock-text" id="lockText">サムネイル生成中...</div>
+</div>
+
 <!-- Crop Modal -->
 <div class="modal-overlay" id="cropModal">
     <div class="modal">
@@ -193,7 +219,6 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.mjs';
     window.pdfjsLib = pdfjsLib;
     window.appReady = true;
-    // If files were queued before ready, process them
     if (window._queuedFiles) {
         for (const f of window._queuedFiles) await window.loadPDF(f);
         window._queuedFiles = null;
@@ -202,11 +227,12 @@
 
 <script>
     // ===== State =====
-    let pages = []; // { id, pdfBytes, pageIndex, rotation, crop, sourceName, originalWidth, originalHeight }
+    let pages = [];
     let selectedIds = new Set();
     let nextId = 1;
     let draggedId = null;
-    const thumbCache = new Map(); // id -> { key, dataURL, width, height, cropHTML }
+    let isLocked = false;
+    const thumbCache = new Map();
 
     function thumbCacheKey(p) {
         const cropStr = p.crop ? `${p.crop.left},${p.crop.top},${p.crop.right},${p.crop.bottom}` : '';
@@ -220,8 +246,29 @@
     const saveBtn = document.getElementById('saveBtn');
     const progressBar = document.getElementById('progressBar');
 
+    // ===== Lock / Unlock UI =====
+    function lockUI(text) {
+        isLocked = true;
+        const overlay = document.getElementById('lockOverlay');
+        document.getElementById('lockText').textContent = text || 'サムネイル生成中...';
+        overlay.classList.add('active');
+    }
+
+    function unlockUI() {
+        isLocked = false;
+        document.getElementById('lockOverlay').classList.remove('active');
+    }
+
+    function guardAction(fn) {
+        return function(...args) {
+            if (isLocked) return;
+            return fn.apply(this, args);
+        };
+    }
+
     // ===== File Input =====
     fileInput.addEventListener('change', async (e) => {
+        if (isLocked) return;
         for (const file of e.target.files) {
             await loadPDF(file);
         }
@@ -231,13 +278,14 @@
     // ===== Drag & Drop Files =====
     const dropOverlay = document.getElementById('dropOverlay');
     let dragCounter = 0;
-    document.addEventListener('dragenter', (e) => { e.preventDefault(); dragCounter++; dropOverlay.classList.add('active'); });
+    document.addEventListener('dragenter', (e) => { e.preventDefault(); if (!isLocked) { dragCounter++; dropOverlay.classList.add('active'); } });
     document.addEventListener('dragleave', (e) => { e.preventDefault(); dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dropOverlay.classList.remove('active'); } });
     document.addEventListener('dragover', (e) => e.preventDefault());
     document.addEventListener('drop', async (e) => {
         e.preventDefault();
         dragCounter = 0;
         dropOverlay.classList.remove('active');
+        if (isLocked) return;
         const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
         for (const file of files) await loadPDF(file);
     });
@@ -249,38 +297,57 @@
             window._queuedFiles.push(file);
             return;
         }
+        lockUI(`${file.name} を読み込み中...`);
         showProgress(10);
         const arrayBuffer = await file.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
 
-        // Parse with pdf-lib to get page info
         const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
         const count = pdfDoc.getPageCount();
 
+        const newPageIds = [];
         for (let i = 0; i < count; i++) {
             const page = pdfDoc.getPage(i);
             const { width, height } = page.getSize();
+            const id = nextId++;
             pages.push({
-                id: nextId++,
+                id,
                 pdfBytes: bytes,
                 pageIndex: i,
                 rotation: 0,
-                crop: null, // { left, top, right, bottom } in PDF points
+                crop: null,
                 sourceName: file.name,
                 originalWidth: width,
                 originalHeight: height
             });
-            showProgress(10 + (i / count) * 80);
+            newPageIds.push(id);
+            showProgress(10 + (i / count) * 30);
+        }
+
+        // Render grid first (shows placeholders), then generate thumbs
+        renderGrid();
+
+        // Generate thumbnails sequentially with progress
+        for (let i = 0; i < newPageIds.length; i++) {
+            const p = pages.find(pg => pg.id === newPageIds[i]);
+            if (!p) continue;
+            document.getElementById('lockText').textContent = `サムネイル生成中... (${i + 1}/${newPageIds.length})`;
+            showProgress(40 + (i / newPageIds.length) * 55);
+            const card = pageGrid.querySelector(`[data-id="${p.id}"]`);
+            if (card) {
+                const canvas = card.querySelector('canvas');
+                if (canvas) await renderThumb(canvas, p);
+            }
         }
 
         showProgress(100);
         setTimeout(() => showProgress(0), 500);
         showToast(`${file.name} を読み込みました (${count}ページ)`);
-        renderGrid();
+        unlockUI();
     }
 
     // ===== Render Grid =====
-    async function renderGrid() {
+    function renderGrid() {
         const hasPages = pages.length > 0;
         emptyState.style.display = hasPages ? 'none' : 'flex';
         pageGrid.style.display = hasPages ? 'grid' : 'none';
@@ -314,39 +381,61 @@
             if (checkbox) {
                 checkbox.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    if (isLocked) return;
                     toggleSelect(p.id, e.shiftKey);
                 });
             }
 
             // Click to select
             card.addEventListener('click', (e) => {
-                if (e.target === checkbox) return;
+                if (isLocked || e.target === checkbox) return;
                 toggleSelect(p.id, e.shiftKey);
             });
 
-            // Drag events for reorder
+            // Right-click to preview
+            card.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                if (isLocked) return;
+                openPreview(p);
+            });
+
+            // ===== Drag events for reorder =====
             card.addEventListener('dragstart', (e) => {
+                if (isLocked) { e.preventDefault(); return; }
                 draggedId = p.id;
                 card.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
+                // Required for Firefox
+                e.dataTransfer.setData('text/plain', '');
             });
             card.addEventListener('dragend', () => {
                 card.classList.remove('dragging');
                 draggedId = null;
-                document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+                clearDragIndicators();
             });
             card.addEventListener('dragover', (e) => {
-                if (draggedId === null) return;
+                if (draggedId === null || isLocked) return;
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
-                card.classList.add('drag-over');
+                // Determine left/right based on mouse position
+                const rect = card.getBoundingClientRect();
+                const midX = rect.left + rect.width / 2;
+                clearDragIndicators();
+                if (e.clientX < midX) {
+                    card.classList.add('drag-over-left');
+                } else {
+                    card.classList.add('drag-over-right');
+                }
             });
-            card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+            card.addEventListener('dragleave', () => {
+                card.classList.remove('drag-over-left', 'drag-over-right');
+            });
             card.addEventListener('drop', (e) => {
                 e.preventDefault();
-                card.classList.remove('drag-over');
+                const insertBefore = card.classList.contains('drag-over-left');
+                clearDragIndicators();
                 if (draggedId === null || draggedId === p.id) return;
-                reorderPage(draggedId, p.id);
+                reorderPage(draggedId, p.id, insertBefore);
             });
 
             pageGrid.appendChild(card);
@@ -356,12 +445,19 @@
             const cached = thumbCache.get(p.id);
             if (cached && cached.key === cacheKey) {
                 applyCachedThumb(card, cached);
-            } else {
+            } else if (!isLocked) {
+                // Only render if not locked (during lock, loadPDF handles rendering)
                 renderThumb(card.querySelector('canvas'), p);
             }
         }
 
         updateToolbarState();
+    }
+
+    function clearDragIndicators() {
+        document.querySelectorAll('.drag-over-left, .drag-over-right').forEach(el => {
+            el.classList.remove('drag-over-left', 'drag-over-right');
+        });
     }
 
     // ===== Render Thumbnail =====
@@ -394,7 +490,6 @@
 
             let cropHTML = '';
 
-            // Draw crop indicator
             if (pageData.crop) {
                 const origPage = await pdf.getPage(pageData.pageIndex + 1);
                 const origVp = origPage.getViewport({ scale: 1 });
@@ -425,7 +520,6 @@
                 canvas.parentElement.insertAdjacentHTML('beforeend', cropHTML);
             }
 
-            // Cache the rendered thumbnail
             const dataURL = canvas.toDataURL();
             thumbCache.set(pageData.id, {
                 key: thumbCacheKey(pageData),
@@ -441,23 +535,71 @@
         }
     }
 
+    // ===== Preview =====
+    let previewOpen = false;
+
+    async function openPreview(pageData) {
+        if (previewOpen) {
+            closePreview();
+            return;
+        }
+        previewOpen = true;
+        const overlay = document.getElementById('previewOverlay');
+        const canvas = document.getElementById('previewCanvas');
+        const info = document.getElementById('previewInfo');
+        overlay.classList.add('active');
+
+        info.textContent = `${pageData.sourceName} - ページ ${pageData.pageIndex + 1}`;
+
+        try {
+            const pdf = await pdfjsLib.getDocument({ data: pageData.pdfBytes.slice() }).promise;
+            const page = await pdf.getPage(pageData.pageIndex + 1);
+            const vp = page.getViewport({ scale: 1, rotation: pageData.rotation });
+            const maxDim = Math.min(window.innerWidth * 0.85, window.innerHeight * 0.85);
+            const scale = maxDim / Math.max(vp.width, vp.height);
+            const viewport = page.getViewport({ scale, rotation: pageData.rotation });
+
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            pdf.destroy();
+        } catch (e) {
+            console.error('Preview error:', e);
+            closePreview();
+        }
+    }
+
+    function closePreview() {
+        previewOpen = false;
+        document.getElementById('previewOverlay').classList.remove('active');
+    }
+
+    // Right-click or left-click on preview overlay to close
+    const previewOverlay = document.getElementById('previewOverlay');
+    previewOverlay.addEventListener('click', closePreview);
+    previewOverlay.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        closePreview();
+    });
+
     // ===== Selection =====
     let multiSelectMode = false;
     let lastSelectedIndex = -1;
 
-    window.toggleMultiSelect = function() {
+    window.toggleMultiSelect = guardAction(function() {
         multiSelectMode = !multiSelectMode;
         const btn = document.getElementById('multiSelectBtn');
         btn.classList.toggle('active', multiSelectMode);
         btn.textContent = multiSelectMode ? '☑ 複数選択' : '☐ 複数選択';
         if (!multiSelectMode && selectedIds.size > 1) {
-            // Keep only the last selected
             const lastId = [...selectedIds].pop();
             selectedIds.clear();
             selectedIds.add(lastId);
             renderGrid();
+        } else {
+            renderGrid();
         }
-    };
+    });
 
     function toggleSelect(id, shift) {
         const idx = pages.findIndex(p => p.id === id);
@@ -471,7 +613,6 @@
                 else selectedIds.add(id);
             }
         } else {
-            // Single select mode: replace selection
             if (selectedIds.has(id) && selectedIds.size === 1) {
                 selectedIds.clear();
             } else {
@@ -483,19 +624,19 @@
         renderGrid();
     }
 
-    window.selectAll = function() {
+    window.selectAll = guardAction(function() {
         multiSelectMode = true;
         const btn = document.getElementById('multiSelectBtn');
         btn.classList.add('active');
         btn.textContent = '☑ 複数選択';
         pages.forEach(p => selectedIds.add(p.id));
         renderGrid();
-    };
+    });
 
-    window.deselectAll = function() {
+    window.deselectAll = guardAction(function() {
         selectedIds.clear();
         renderGrid();
-    };
+    });
 
     function updateToolbarState() {
         const count = selectedIds.size;
@@ -508,30 +649,33 @@
     }
 
     // ===== Reorder =====
-    function reorderPage(fromId, toId) {
+    function reorderPage(fromId, toId, insertBefore) {
         const fromIdx = pages.findIndex(p => p.id === fromId);
         const toIdx = pages.findIndex(p => p.id === toId);
         if (fromIdx < 0 || toIdx < 0) return;
 
-        // If multiple selected and dragged is part of selection, move all selected
         if (selectedIds.has(fromId) && selectedIds.size > 1) {
             const selectedPages = pages.filter(p => selectedIds.has(p.id));
             const remaining = pages.filter(p => !selectedIds.has(p.id));
-            const insertIdx = remaining.findIndex(p => p.id === toId);
+            let insertIdx = remaining.findIndex(p => p.id === toId);
             if (insertIdx >= 0) {
+                if (!insertBefore) insertIdx++;
                 remaining.splice(insertIdx, 0, ...selectedPages);
                 pages = remaining;
             }
         } else {
             const [moved] = pages.splice(fromIdx, 1);
-            const newToIdx = pages.findIndex(p => p.id === toId);
+            let newToIdx = pages.findIndex(p => p.id === toId);
+            if (newToIdx < 0) newToIdx = pages.length;
+            if (!insertBefore) newToIdx++;
             pages.splice(newToIdx, 0, moved);
         }
         renderGrid();
     }
 
     // ===== Rotate =====
-    window.rotateSelected = function(degrees) {
+    window.rotateSelected = guardAction(function(degrees) {
+        if (selectedIds.size === 0) return;
         pages.forEach(p => {
             if (selectedIds.has(p.id)) {
                 p.rotation = ((p.rotation + degrees) % 360 + 360) % 360;
@@ -539,10 +683,10 @@
         });
         renderGrid();
         showToast(`${selectedIds.size}ページを回転しました`);
-    };
+    });
 
     // ===== Delete =====
-    window.deleteSelected = function() {
+    window.deleteSelected = guardAction(function() {
         if (selectedIds.size === 0) return;
         const count = selectedIds.size;
         selectedIds.forEach(id => thumbCache.delete(id));
@@ -550,7 +694,7 @@
         selectedIds.clear();
         renderGrid();
         showToast(`${count}ページを削除しました`);
-    };
+    });
 
     // ===== Crop Modal =====
     let cropTargetId = null;
@@ -559,7 +703,7 @@
     let isDraggingCrop = false, cropDragType = null, cropStartX = 0, cropStartY = 0;
     let cropRect = { x: 0, y: 0, w: 0, h: 0 };
 
-    window.openCropModal = async function() {
+    window.openCropModal = guardAction(async function() {
         if (selectedIds.size === 0) return;
         cropTargetId = [...selectedIds][0];
         const pageData = pages.find(p => p.id === cropTargetId);
@@ -584,7 +728,6 @@
         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
         pdf.destroy();
 
-        // Init crop rect from existing crop or full page
         const c = pageData.crop || { left: 0, top: 0, right: 0, bottom: 0 };
         cropRect = {
             x: c.left * cropScale,
@@ -596,7 +739,7 @@
         document.getElementById('cropApplyAll').checked = selectedIds.size > 1;
         updateCropBox();
         updateCropInputs();
-    };
+    });
 
     window.closeCropModal = function() {
         document.getElementById('cropModal').classList.remove('active');
@@ -644,7 +787,6 @@
             cropStartY = e.clientY;
             e.preventDefault();
         } else if (e.target.tagName === 'CANVAS') {
-            // Start new crop rect
             const rect = cropContainer.getBoundingClientRect();
             isDraggingCrop = true;
             cropDragType = 'new';
@@ -676,7 +818,6 @@
             cropRect.w = Math.max(10, Math.min(maxW - cropRect.x, cx - cropRect.x));
             cropRect.h = Math.max(10, Math.min(maxH - cropRect.y, cy - cropRect.y));
         } else {
-            // Handle resize
             if (cropDragType.includes('l')) { cropRect.x = Math.max(0, cropRect.x + dx); cropRect.w = Math.max(10, cropRect.w - dx); }
             if (cropDragType.includes('r')) { cropRect.w = Math.max(10, Math.min(maxW - cropRect.x, cropRect.w + dx)); }
             if (cropDragType.includes('t')) { cropRect.y = Math.max(0, cropRect.y + dy); cropRect.h = Math.max(10, cropRect.h - dy); }
@@ -699,7 +840,6 @@
             bottom: cropPageHeight - (cropRect.y + cropRect.h) / cropScale
         };
 
-        // Validate: avoid negative or zero-dimension crops
         if (crop.left < 0) crop.left = 0;
         if (crop.top < 0) crop.top = 0;
         if (crop.right < 0) crop.right = 0;
@@ -709,7 +849,6 @@
         let count = 0;
         pages.forEach(p => {
             if (applyAll ? selectedIds.has(p.id) : p.id === cropTargetId) {
-                // Check if crop is essentially zero (full page)
                 if (crop.left < 1 && crop.top < 1 && crop.right < 1 && crop.bottom < 1) {
                     p.crop = null;
                 } else {
@@ -725,8 +864,9 @@
     };
 
     // ===== Save PDF =====
-    window.savePDF = async function() {
+    window.savePDF = guardAction(async function() {
         if (pages.length === 0) return;
+        lockUI('PDF生成中...');
         saveBtn.disabled = true;
         showProgress(5);
 
@@ -740,19 +880,15 @@
                 const srcDoc = await PDFLib.PDFDocument.load(p.pdfBytes, { ignoreEncryption: true });
                 const [copiedPage] = await outDoc.copyPages(srcDoc, [p.pageIndex]);
 
-                // Apply rotation
                 if (p.rotation !== 0) {
                     const currentRotation = copiedPage.getRotation().angle;
                     copiedPage.setRotation(PDFLib.degrees(currentRotation + p.rotation));
                 }
 
-                // Apply crop via MediaBox adjustment
                 if (p.crop) {
                     const { width, height } = copiedPage.getSize();
                     const c = p.crop;
-                    // MediaBox: [left, bottom, right, top] in PDF coordinate system (origin at bottom-left)
                     copiedPage.setMediaBox(c.left, c.bottom, width - c.left - c.right, height - c.top - c.bottom);
-                    // Also set CropBox
                     copiedPage.setCropBox(c.left, c.bottom, width - c.left - c.right, height - c.top - c.bottom);
                 }
 
@@ -763,7 +899,6 @@
             const pdfBytes = await outDoc.save();
             showProgress(98);
 
-            // Download
             const blob = new Blob([pdfBytes], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -781,15 +916,21 @@
             showProgress(0);
         }
         saveBtn.disabled = false;
-    };
+        unlockUI();
+    });
 
     // ===== Keyboard Shortcuts =====
     document.addEventListener('keydown', (e) => {
+        // Preview close
+        if (previewOpen) {
+            if (e.key === 'Escape') closePreview();
+            return;
+        }
         if (document.getElementById('cropModal').classList.contains('active')) {
             if (e.key === 'Escape') closeCropModal();
             return;
         }
-        if (e.target.tagName === 'INPUT') return;
+        if (isLocked || e.target.tagName === 'INPUT') return;
 
         if (e.key === 'Delete' || e.key === 'Backspace') { deleteSelected(); e.preventDefault(); }
         if (e.key === 'a' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); selectAll(); }
