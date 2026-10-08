@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>日本語ダミー個人情報ジェネレーター</title>
+<style>
+  body{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;max-width:860px;margin:32px auto;padding:0 18px;background:#f6f7f9;color:#222}
+  .card{background:#fff;border-radius:14px;padding:24px;box-shadow:0 4px 20px #0001}
+  h1{font-size:22px;margin:0 0 8px}
+  .note{background:#fff7df;padding:12px 14px;border-radius:9px;font-size:13px;margin:0 0 18px;line-height:1.6}
+  .section{margin-top:22px;padding-top:16px;border-top:1px solid #e7e9ed}
+  .section h2{font-size:16px;margin:0 0 12px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  label{font-size:13px;font-weight:700}
+  .field{display:flex;gap:6px;align-items:end}
+  input,select{box-sizing:border-box;width:100%;margin-top:5px;padding:10px;border:1px solid #ccd1d8;border-radius:8px;font-size:15px;background:#fff}
+  .field input{flex:1}
+  .copy{margin-top:5px;padding:10px 11px;border:1px solid #ccd1d8;border-radius:8px;background:#f0f2f5;color:#222;font-weight:600;cursor:pointer;white-space:nowrap}
+  .copy:hover{background:#e5e8ec}
+  .full{grid-column:1/-1}
+  .birth{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .actions{margin-top:20px}
+  .mainbtn{padding:11px 16px;border:0;border-radius:9px;background:#222;color:#fff;font-weight:700;cursor:pointer}
+  .mainbtn.secondary{margin-left:8px;background:#e9ebef;color:#222}
+  .status{margin-top:12px;font-size:13px;color:#555;min-height:1.3em}
+  .hint{font-size:12px;color:#777;font-weight:400;margin-top:4px}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}.birth{grid-template-columns:1fr 1fr 1fr}.full{grid-column:auto}.mainbtn.secondary{margin-left:0;margin-top:8px}}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>日本語ダミー個人情報ジェネレーター</h1>
+  <div class="note">
+    日本語の会員情報フォーム向け。実在人物と紐づかない架空データを生成します。
+    本人確認・決済・配送などで虚偽情報を提出する用途には使わないでください。
+  </div>
+
+  <div class="section">
+    <h2>基本情報</h2>
+    <div class="grid">
+      <label>姓
+        <div class="field"><input id="last"><button class="copy" onclick="copyField('last',this)">コピー</button></div>
+      </label>
+      <label>名
+        <div class="field"><input id="first"><button class="copy" onclick="copyField('first',this)">コピー</button></div>
+      </label>
+
+      <label>セイ
+        <div class="field"><input id="kanaLast"><button class="copy" onclick="copyField('kanaLast',this)">コピー</button></div>
+      </label>
+      <label>メイ
+        <div class="field"><input id="kanaFirst"><button class="copy" onclick="copyField('kanaFirst',this)">コピー</button></div>
+      </label>
+
+      <label>性別
+        <div class="field"><input id="gender" readonly><button class="copy" onclick="copyField('gender',this)">コピー</button></div>
+      </label>
+
+      <label>電話番号
+        <div class="field"><input id="phone"><button class="copy" onclick="copyField('phone',this)">コピー</button></div>
+        <div class="hint">ハイフンなし</div>
+      </label>
+
+      <label>メールアドレス
+        <div class="field"><input id="email"><button class="copy" onclick="copyField('email',this)">コピー</button></div>
+        <div class="hint">架空ドメイン使用</div>
+      </label>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>住所</h2>
+    <div class="grid">
+      <label>郵便番号
+        <div class="field"><input id="postal"><button class="copy" onclick="copyField('postal',this)">コピー</button></div>
+        <div class="hint">ハイフンなし</div>
+      </label>
+
+      <label>都道府県
+        <div class="field"><input id="prefecture"><button class="copy" onclick="copyField('prefecture',this)">コピー</button></div>
+      </label>
+
+      <label>住所（市区町村郡）
+        <div class="field"><input id="city"><button class="copy" onclick="copyField('city',this)">コピー</button></div>
+      </label>
+
+      <label>住所2（それ以降）
+        <div class="field"><input id="addr2"><button class="copy" onclick="copyField('addr2',this)">コピー</button></div>
+        <div class="hint">町名・番地</div>
+      </label>
+
+      <label class="full">住所3（マンション名等）
+        <div class="field"><input id="addr3"><button class="copy" onclick="copyField('addr3',this)">コピー</button></div>
+      </label>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>生年月日</h2>
+    <div class="grid">
+      <label class="full">生年月日
+        <div class="birth">
+          <div class="field"><input id="birthYear" readonly><button class="copy" onclick="copyField('birthYear',this)">年</button></div>
+          <div class="field"><input id="birthMonth" readonly><button class="copy" onclick="copyField('birthMonth',this)">月</button></div>
+          <div class="field"><input id="birthDay" readonly><button class="copy" onclick="copyField('birthDay',this)">日</button></div>
+        </div>
+      </label>
+      <label class="full">生年月日（まとめて）
+        <div class="field"><input id="birthFull"><button class="copy" onclick="copyField('birthFull',this)">コピー</button></div>
+      </label>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="mainbtn" onclick="generate()">架空データを生成</button>
+    <button class="mainbtn secondary" onclick="copyAll()">全部コピー</button>
+    <div class="status" id="status"></div>
+  </div>
+</div>
+
+<script>
+const names = [
+  ["高橋","悠真","タカハシ","ユウマ"],
+  ["田中","陽菜","タナカ","ヒナ"],
+  ["伊藤","蓮","イトウ","レン"],
+  ["山本","葵","ヤマモト","アオイ"],
+  ["小林","颯太","コバヤシ","ソウタ"],
+  ["中村","美咲","ナカムラ","ミサキ"],
+  ["加藤","直樹","カトウ","ナオキ"],
+  ["森","結衣","モリ","ユイ"]
+];
+
+const addresses = [
+  ["愛知県","名古屋市中区","栄三丁目","12-8","テスト栄ビル 4階","460-0008"],
+  ["大阪府","大阪市北区","梅田二丁目","5-11","サンプル梅田ハイツ 203号","530-0001"],
+  ["東京都","新宿区","西新宿二丁目","7-15","デモ新宿ビル 6階","160-0023"],
+  ["神奈川県","横浜市中区","本町三丁目","18-4","テスト本町マンション 302号","231-0005"],
+  ["福岡県","福岡市博多区","博多駅前二丁目","9-6","サンプル博多コート 105号","812-0011"],
+  ["京都府","京都市中京区","錦小路通","8-3","デモ錦ビル 2階","604-8055"]
+];
+
+function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+function pad(n){ return String(n).padStart(2,"0"); }
+
+function generate(){
+  const n = pick(names);
+  const a = pick(addresses);
+  const gender = ["男性","女性"][Math.floor(Math.random()*2)];
+
+  const year = 1970 + Math.floor(Math.random()*31);
+  const month = 1 + Math.floor(Math.random()*12);
+  const day = 1 + Math.floor(Math.random()*28);
+
+  document.getElementById("last").value = n[0];
+  document.getElementById("first").value = n[1];
+  document.getElementById("kanaLast").value = n[2];
+  document.getElementById("kanaFirst").value = n[3];
+  document.getElementById("gender").value = gender;
+  document.getElementById("phone").value = "00000000000";
+  document.getElementById("email").value = `dummy${Math.floor(1000+Math.random()*9000)}@example.invalid`;
+
+  document.getElementById("prefecture").value = a[0];
+  document.getElementById("city").value = a[1];
+  document.getElementById("addr2").value = `${a[2]}${a[3]}`;
+  document.getElementById("addr3").value = a[4];
+  document.getElementById("postal").value = a[5].replace("-","");
+
+  document.getElementById("birthYear").value = year;
+  document.getElementById("birthMonth").value = pad(month);
+  document.getElementById("birthDay").value = pad(day);
+  document.getElementById("birthFull").value = `${year}/${pad(month)}/${pad(day)}`;
+
+  document.getElementById("status").textContent = "架空データを生成しました。";
+}
+
+async function copyField(id,btn){
+  const value = document.getElementById(id).value;
+  await navigator.clipboard.writeText(value);
+  const old = btn.textContent;
+  btn.textContent = "コピー済み";
+  document.getElementById("status").textContent = `${value} をコピーしました。`;
+  setTimeout(()=>btn.textContent=old,1000);
+}
+
+async function copyAll(){
+  const ids = [
+    "last","first","kanaLast","kanaFirst","gender","phone","email",
+    "postal","prefecture","city","addr2","addr3","birthFull"
+  ];
+  const labels = [
+    "姓","名","セイ","メイ","性別","電話番号","メールアドレス",
+    "郵便番号","都道府県","住所（市区町村郡）","住所2","住所3","生年月日"
+  ];
+  const text = ids.map((id,i)=>`${labels[i]}: ${document.getElementById(id).value}`).join("\n");
+  await navigator.clipboard.writeText(text);
+  document.getElementById("status").textContent = "入力内容を全部コピーしました。";
+}
+
+generate();
+</script>
+</body>
+</html>
