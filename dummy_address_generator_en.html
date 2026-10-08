@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ダミー住所ジェネレーター</title>
+<style>
+  body{font-family:system-ui,-apple-system,sans-serif;max-width:720px;margin:40px auto;padding:0 18px;background:#f6f7f9;color:#222}
+  .card{background:white;border-radius:14px;padding:24px;box-shadow:0 4px 20px #0001}
+  h1{font-size:22px;margin-top:0}
+  .note{background:#fff7df;padding:12px;border-radius:9px;font-size:13px;margin-bottom:18px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  label{font-size:13px;font-weight:600}
+  input,select{box-sizing:border-box;width:100%;margin-top:5px;padding:10px;border:1px solid #ccd1d8;border-radius:8px;font-size:15px}
+  .full{grid-column:1/-1}
+  button{margin-top:18px;padding:11px 16px;border:0;border-radius:9px;background:#222;color:#fff;font-weight:700;cursor:pointer}
+  button+button{margin-left:8px;background:#e9ebef;color:#222}
+  .status{margin-top:12px;font-size:13px;color:#555}
+  @media(max-width:600px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>ダミー住所ジェネレーター</h1>
+<div class="note">
+  実在人物の個人情報ではない、テスト用の架空データを生成します。
+  本人確認・決済・配送などで虚偽情報を提出する用途には使わないでください。
+</div>
+
+<div class="grid">
+  <label>First Name<input id="first"></label>
+  <label>Last Name<input id="last"></label>
+  <label>Country / Region<input id="country" value="Japan" readonly></label>
+  <label>State<input id="state"></label>
+  <label>City<input id="city"></label>
+  <label>Postal Code<input id="postal"></label>
+  <label class="full">Street Address<input id="street"></label>
+  <label>Building/House No<input id="house"></label>
+  <label class="full">Cell/Mobile number<input id="phone"></label>
+</div>
+
+<button onclick="generate()">架空データを生成</button>
+<button onclick="copyAll()">全部コピー</button>
+<div class="status" id="status"></div>
+</div>
+
+<script>
+const firstNames=["Haruto","Ren","Sota","Yuki","Aoi","Hina","Riku","Mio"];
+const lastNames=["Kawamura","Mizuno","Takeda","Fujita","Mori","Ishikawa","Nakamura","Sakurai"];
+const prefectures=[
+ ["Aichi","Nagoya"],["Osaka","Osaka"],["Kyoto","Kyoto"],
+ ["Kanagawa","Yokohama"],["Saitama","Saitama"],["Chiba","Chiba"],
+ ["Hyogo","Kobe"],["Fukuoka","Fukuoka"]
+];
+const streets=["Example Street","Sample Avenue","Test Road","Demo Street"];
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const num=(n,d=1)=>String(Math.floor(Math.random()*n)+d);
+
+function generate(){
+  const [state,city]=pick(prefectures);
+  document.getElementById("first").value=pick(firstNames);
+  document.getElementById("last").value=pick(lastNames);
+  document.getElementById("state").value=state;
+  document.getElementById("city").value=city;
+  document.getElementById("postal").value=`${num(900,100)}-${num(8999,1000)}`;
+  document.getElementById("street").value=pick(streets);
+  document.getElementById("house").value=`${num(98)}-${num(30)}`;
+  // 080/090等の実在番号と誤って衝突しにくい、明示的なダミー形式
+  document.getElementById("phone").value="+81 000 0000 0000";
+  document.getElementById("status").textContent="架空データを生成しました。";
+}
+
+async function copyAll(){
+  const ids=["first","last","country","state","city","postal","street","house","phone"];
+  const text=ids.map(id=>document.getElementById(id).value).join("\\n");
+  await navigator.clipboard.writeText(text);
+  document.getElementById("status").textContent="入力内容をクリップボードにコピーしました。";
+}
+generate();
+</script>
+</body>
+</html>
