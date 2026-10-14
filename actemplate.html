@@ -595,6 +595,14 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
   });
 
 })();</script>
+<script id="lumi-getcssvar">
+window.getCssVar = window.getCssVar || function(name) {
+  try {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  } catch (e) { return ''; }
+};
+</script>
+
 <style id="lumi-runtime">
 /* luminous.css */
 /*
@@ -1431,77 +1439,71 @@ button.active, button.is-active, button.selected, button.is-selected, button[ari
 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AtCoder C++ Boilerplate Generator</title>
+  <title>AtCoder C++ Template Generator</title>
   <style>
-    *, *::before, *::after {
-      box-sizing: border-box;
-    }
-    
+    /* Widget specific custom glue styling */
     html, body {
       margin: 0;
       padding: 0;
-      font-family: var(--ff-sans, system-ui, -apple-system, sans-serif);
-      background: transparent;
-      color: var(--on-surface, #000000);
       overflow-y: hidden;
+      font-family: var(--ff-sans, system-ui, sans-serif);
+      color: var(--on-surface);
     }
 
     .widget-container {
       width: 100%;
       min-height: 280px;
-      padding: var(--lumi-sys-spacing--m, 12px);
+      padding: var(--spacing-l, 16px);
       box-sizing: border-box;
-    }
-
-    .app-card {
-      background: var(--surface-dim, #f2f0f0);
-      border-radius: var(--lumi-sys-shape--medium, 12px);
-      padding: var(--lumi-sys-spacing--l, 16px);
       display: flex;
       flex-direction: column;
-      gap: var(--lumi-sys-spacing--m, 12px);
+      gap: var(--spacing-l, 16px);
     }
 
-    .header-bar {
+    .app-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: var(--lumi-sys-spacing--m, 12px);
+      gap: var(--spacing-m, 12px);
       flex-wrap: wrap;
     }
 
-    .header-title {
-      margin: 0;
-      color: var(--on-surface, #000000);
+    .app-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
 
-    .header-subtitle {
-      margin: 2px 0 0 0;
-      color: var(--on-surface-variant, rgba(0, 0, 0, 0.55));
-    }
-
-    .grid-layout {
+    .main-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
-      gap: var(--lumi-sys-spacing--m, 12px);
+      gap: var(--spacing-l, 16px);
     }
 
     @media (min-width: 580px) {
-      .grid-layout {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      .main-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
       }
     }
 
     .panel {
-      background: var(--surface-bright, #ffffff);
-      border-radius: var(--lumi-sys-shape--medium, 12px);
-      padding: var(--lumi-sys-spacing--m, 12px);
+      background: var(--surface-dim);
+      border-radius: var(--r-m, 12px);
+      padding: var(--spacing-m, 12px);
       display: flex;
       flex-direction: column;
-      gap: var(--lumi-sys-spacing--s, 8px);
+      gap: var(--spacing-m, 12px);
+      box-sizing: border-box;
     }
 
-    .preset-group {
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacing-s, 8px);
+    }
+
+    .preset-chips {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
@@ -1509,93 +1511,83 @@ button.active, button.is-active, button.selected, button.is-selected, button[ari
 
     .input-textarea {
       width: 100%;
-      min-height: 140px;
-      padding: 10px;
-      border-radius: var(--r-m, 12px);
-      border: 1px solid var(--stroke-default, #e3e3e3);
-      background: var(--surface-dim, #f2f0f0);
-      color: var(--on-surface, #000000);
+      height: 180px;
+      padding: var(--spacing-m, 12px);
+      border-radius: var(--r-s, 8px);
+      border: 1px solid var(--stroke-default);
+      background: var(--surface-bright);
+      color: var(--on-surface);
       font-family: var(--ff-mono, monospace);
       font-size: 13px;
-      line-height: 1.4;
+      line-height: 1.45;
       resize: vertical;
-      outline: none;
       box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.15s ease;
     }
 
     .input-textarea:focus {
-      border-color: var(--primary, #3186ff);
+      border-color: var(--primary);
     }
 
-    .option-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 4px 0;
-    }
-
-    .code-preview-container {
+    .code-container {
       position: relative;
       background: var(--code-background, #1e1e1e);
-      border-radius: var(--r-m, 12px);
+      border-radius: var(--r-s, 8px);
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      min-height: 240px;
+      min-height: 280px;
+      max-height: 380px;
     }
 
-    .code-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      background: rgba(255, 255, 255, 0.05);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .code-lang-tag {
-      font-family: var(--ff-mono, monospace);
-      font-size: 12px;
-      color: rgba(255, 255, 255, 0.7);
-    }
-
-    .code-content {
-      margin: 0;
-      padding: 12px;
-      font-family: var(--ff-mono, monospace);
-      font-size: 12px;
-      line-height: 1.5;
-      color: #d4d4d4;
+    .code-scroll {
+      padding: var(--spacing-m, 12px);
       overflow-x: auto;
-      white-space: pre;
+      overflow-y: auto;
       flex: 1;
+      margin: 0;
     }
 
-    /* Syntax Highlighting Colors */
-    .kw { color: #569cd6; font-weight: 500; }
-    .type { color: #4ec9b0; }
-    .fn { color: #dcdcaa; }
-    .cm { color: #6a9955; font-style: italic; }
-    .str { color: #ce9178; }
-    .num { color: #b5cea8; }
+    pre.code-block {
+      margin: 0;
+      font-family: var(--ff-mono, monospace);
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--code-primary-text, #d4d4d4);
+      white-space: pre;
+    }
 
-    .toast-msg {
-      position: absolute;
-      bottom: 12px;
-      right: 12px;
-      background: var(--primary-container, #dcf1ff);
-      color: var(--accent-fixed, #3186ff);
-      padding: 4px 12px;
-      border-radius: var(--r-full, 999px);
+    /* Simple C++ syntax colors */
+    .kw { color: var(--code-purple-text, #c586c0); font-weight: 500; }
+    .type { color: var(--code-blue-text, #4ec9b0); font-weight: 500; }
+    .fn { color: var(--code-yellow-text, #dcdcaa); }
+    .cm { color: var(--code-green-text, #6a9955); font-style: italic; }
+    .str { color: var(--code-pink-text, #ce9178); }
+    .num { color: var(--code-green-text, #b5cea8); }
+
+    .copy-btn {
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .copy-btn.copied {
+      background: var(--positive-container, #daf9d4);
+      color: var(--positive, #008052);
+    }
+
+    .toast-feedback {
       font-size: 12px;
-      font-weight: 600;
+      color: var(--positive);
       opacity: 0;
-      transition: opacity 0.2s ease;
-      pointer-events: none;
+      transform: translateY(2px);
+      transition: all 0.2s ease;
+      font-weight: 500;
     }
 
-    .toast-msg.show {
+    .toast-feedback.show {
       opacity: 1;
+      transform: translateY(0);
     }
   </style>
 <script id="lumi-os-theme-init">
@@ -1645,73 +1637,83 @@ button.active, button.is-active, button.selected, button.is-selected, button[ari
 </head>
 <body class="dark-mode">
   <div class="widget-container">
-    <div class="app-card">
-      <div class="header-bar">
-        <div>
-          <h2 class="header-title lumi-headline-m">AtCoder C++ ボイラープレート生成器</h2>
-          <p class="header-subtitle lumi-body-s">入力フォーマット（HTML/テキスト）から変数を自動解析してコードを出力します</p>
+    <div class="app-header">
+      <div class="app-title-group">
+        <h2 class="lumi-headline-m" style="margin: 0;">AtCoder C++ Code Generator</h2>
+        <span class="lumi-body-s" style="color: var(--on-surface-variant);">問題文の入力仕様（テキスト/HTML）から自動生成</span>
+      </div>
+
+      <!-- Type Switcher -->
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="lumi-body-s-emphasized" style="color: var(--on-surface-variant);">整数型:</span>
+        <div class="lumi-segmented-group" style="display: inline-flex; background: var(--surface-container); padding: 2px; border-radius: var(--r-full);">
+          <button type="button" class="lumi-segmented-btn is-selected" id="type-long" onclick="setType('long long')">long long</button>
+          <button type="button" class="lumi-segmented-btn" id="type-int" onclick="setType('int')">int</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <!-- Left Panel: Input & Controls -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="lumi-body-m-emphasized">入力フォーマット</span>
+          <button type="button" class="lumi-btn lumi-btn--ghost lumi-btn--small" onclick="clearInput()">クリア</button>
+        </div>
+
+        <!-- Presets -->
+        <div class="preset-chips">
+          <button type="button" class="lumi-chip" onclick="applyPreset('scalar')">a b</button>
+          <button type="button" class="lumi-chip" onclick="applyPreset('array1d')">N / A_1..A_N</button>
+          <button type="button" class="lumi-chip" onclick="applyPreset('grid')">H W / S_1..S_H</button>
+          <button type="button" class="lumi-chip" onclick="applyPreset('matrix')">N M / A_{i,j}</button>
+          <button type="button" class="lumi-chip" onclick="applyPreset('edges')">N M / u_i v_i</button>
+        </div>
+
+        <textarea id="input-text" class="input-textarea" placeholder="AtCoderの問題文入力テキストまたはHTML (&lt;pre&gt;タグ含む) を貼り付け..." oninput="onInputChange()"></textarea>
+
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span id="parse-status" class="lumi-caption" style="color: rgb(14, 188, 95);">パース完了</span>
         </div>
       </div>
 
-      <div class="grid-layout">
-        <!-- Input Left Panel -->
-        <div class="panel">
-          <span class="lumi-label-m lumi-body-m-emphasized">プリセット選択</span>
-          <div class="preset-group">
-            <button type="button" class="lumi-chip is-active" data-preset="array">1次元配列</button>
-            <button type="button" class="lumi-chip" data-preset="simple">単純変数 (a b)</button>
-            <button type="button" class="lumi-chip" data-preset="grid">グリッド (H W)</button>
-            <button type="button" class="lumi-chip" data-preset="graph">グラフ (N M / u v)</button>
-          </div>
-
-          <span class="lumi-label-m lumi-body-m-emphasized" style="margin-top: 4px;">入力フォーマット / HTML</span>
-          <textarea id="formatInput" class="input-textarea" placeholder="例: N\nA_1 A_2 ... A_N または HTMLコード"></textarea>
-
-          <div class="option-row">
-            <span class="lumi-body-m">整数型に long long を使用</span>
-            <div class="lumi-switch is-active" id="typeSwitch" tabindex="0">
-              <div class="lumi-switch__track">
-                
-              </div>
-            </div>
+      <!-- Right Panel: C++ Code Output -->
+      <div class="panel" style="background: var(--surface-bright); border: 1px solid var(--stroke-default);">
+        <div class="panel-header">
+          <span class="lumi-body-m-emphasized">C++20 テンプレート</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="copy-toast" class="toast-feedback">コピーしました！</span>
+            <button type="button" id="copy-btn" class="lumi-btn lumi-btn--accent lumi-btn--small copy-btn" onclick="copyCode()">
+              コードをコピー
+            </button>
           </div>
         </div>
 
-        <!-- Output Right Panel -->
-        <div class="panel">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span class="lumi-label-m lumi-body-m-emphasized">C++ 雛形コード</span>
-            <button type="button" id="copyBtn" class="lumi-btn lumi-btn--small lumi-btn--primary">コードをコピー</button>
-          </div>
-
-          <div class="code-preview-container">
-            <div class="code-header">
-              <span class="code-lang-tag">C++20 (GCC 12.2)</span>
-            </div>
-            <pre class="code-content"><code id="codeOutput">#include <span class="str">&lt;iostream&gt;</span>
-#include &lt;<span class="type">vector</span>&gt;
-#include &lt;<span class="type">string</span>&gt;
-#include <span class="str">&lt;algorithm&gt;</span>
+        <div class="code-container">
+          <div class="code-scroll">
+            <pre class="code-block" id="code-output"><span class="cm">#include &lt;iostream&gt;</span>
+<span class="cm">#include &lt;<span class="type">vector</span>&gt;</span>
+<span class="cm">#include &lt;<span class="type">string</span>&gt;</span>
+<span class="cm">#include &lt;algorithm&gt;</span>
 
 <span class="kw">using</span> <span class="kw">namespace</span> std;
 
-<span class="kw">void</span> <span class="fn">solve</span>(<span class="type">long long</span> N, <span class="kw">const</span> <span class="type">vector</span>&lt;<span class="type">long long</span>&gt;&amp; A) {
-<span class="cm">    // TODO: 解法を実装</span>
+<span class="kw">void</span> <span class="fn">solve</span>(<span class="type">long long</span> N, <span class="type">long long</span> A_1, <span class="type">long long</span> A_2, <span class="type">long long</span> A_N) {
+    <span class="cm">// TODO: 解法をここに実装</span>
 }
 
-<span class="kw">int</span> <span class="fn">main</span>() {
-    ios::sync_with_stdio(false);
-    cin.tie(nullptr);
+<span class="kw">int</span> <span class="kw">main</span>() {
+    ios::<span class="fn">sync_with_stdio</span>(false);
+    <span class="fn">cin</span>.<span class="fn">tie</span>(nullptr);
 
-    <span class="kw">if</span> (!(cin &gt;&gt; N)) <span class="kw">return</span> <span class="num">0</span>;
-    <span class="type">vector</span>&lt;<span class="type">long long</span>&gt; A(N);
-    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">0</span>; i &lt; N; ++i) cin &gt;&gt; A[i];
+    <span class="type">long long</span> N, A_1, A_2, A_N;
 
-    <span class="fn">solve</span>(N, A);
+    <span class="fn">cin</span> &gt;&gt; N &gt;&gt; A_1 &gt;&gt; A_2 &gt;&gt; A_N;
+
+    <span class="fn">solve</span>(N, A_1, A_2, A_N);
 
     <span class="kw">return</span> <span class="num">0</span>;
-}</code></pre>
-            <div id="toast" class="toast-msg">Copied!</div>
+}</pre>
           </div>
         </div>
       </div>
@@ -1719,122 +1721,274 @@ button.active, button.is-active, button.selected, button.is-selected, button[ari
   </div>
 
   <script>
-    // State Management
+    // State
     const state = {
-      preset: 'array',
-      useLongLong: true,
-      rawText: 'N\nA_1 A_2 ... A_N'
+      intType: 'long long',
+      rawInput: '',
+      generatedCode: ''
     };
 
     const PRESETS = {
-      array: 'N\nA_1 A_2 ... A_N',
-      simple: 'a b c',
-      grid: 'H W\nS_1\nS_2\n:\nS_H',
-      graph: 'N M\nu_1 v_1\nu_2 v_2\n:\nu_M v_M'
+      scalar: `N K`,
+      array1d: `N\nA_1 A_2 ... A_N`,
+      grid: `H W\nS_1\nS_2\n:\nS_H`,
+      matrix: `N M\nA_{1,1} A_{1,2} ... A_{1,M}\nA_{2,1} A_{2,2} ... A_{2,M}\n:\nA_{N,1} A_{N,2} ... A_{N,M}`,
+      edges: `N M\nu_1 v_1\nu_2 v_2\n:\nu_M v_M`
     };
 
-    // Parser & Code Generator Logic
-    function parseInput(input, useLL) {
-      let text = input || '';
-      
-      // 1. Extract content from <pre> if present
-      const preMatch = text.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
-      if (preMatch) {
-        text = preMatch[1];
-      }
-      
-      // Strip HTML tags & sanitize
-      text = text.replace(/<[^>]+>/g, '')
-                 .replace(/&lt;/g, '<')
-                 .replace(/&gt;/g, '>')
-                 .replace(/&amp;/g, '&')
-                 .replace(/&quot;/g, '"')
-                 .trim();
+    function setType(type) {
+      state.intType = type;
+      document.getElementById('type-long').classList.toggle('is-selected', type === 'long long');
+      document.getElementById('type-int').classList.toggle('is-selected', type === 'int');
+      updateViz();
+    }
 
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0 && l !== ':');
+    function applyPreset(key) {
+      const el = document.getElementById('input-text');
+      el.value = PRESETS[key] || '';
+      state.rawInput = el.value;
+      updateViz();
+    }
+
+    function clearInput() {
+      const el = document.getElementById('input-text');
+      el.value = '';
+      state.rawInput = '';
+      updateViz();
+    }
+
+    function onInputChange() {
+      state.rawInput = document.getElementById('input-text').value;
+      updateViz();
+    }
+
+    // Cleaning HTML / Math input text
+    function cleanInputText(raw) {
+      if (!raw) return '';
+      let str = raw;
       
-      const intType = useLL ? 'long long' : 'int';
-      let vars = [];
-      let solveArgs = [];
-      let readLogic = [];
-      let solveCalls = [];
+      // Extract <pre> content if HTML is pasted
+      if (str.includes('<pre>')) {
+        const matches = [...str.matchAll(/<pre[^>]*>([\s\S]*?)<\/pre>/gi)];
+        if (matches.length > 0) {
+          str = matches.map(m => m[1]).join('\n');
+        }
+      }
+
+      // Replace HTML entities & tags
+      str = str.replace(/<[^>]+>/g, ' ');
+      str = str.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+      str = str.replace(/\\dots|\\cdots|\\vdots|\.\.\.|…|:/g, '...');
+      
+      return str;
+    }
+
+    function parseAtCoderInput(rawText, intType) {
+      const text = cleanInputText(rawText);
+      const lines = text.split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0 && l !== '...' && l !== '\\vdots');
 
       if (lines.length === 0) {
-        return generateCppCode([], [], [], ['solve();'], intType);
+        return generateEmptyTemplate();
       }
 
-      // Line 1 parser
-      const line1Tokens = lines[0].replace(/[\.‥…]+/g, '').split(/\s+/).filter(Boolean);
-      const isLine1Scalars = line1Tokens.every(t => /^[a-zA-Z0-9_]+$/.test(t));
+      const knownVars = new Set();
+      const declarations = [];
+      const cinItems = [];
+      const solveParams = [];
+      const solveArgs = [];
 
-      let hasN = false;
-      let hasH = false, hasW = false;
-      let hasM = false;
+      function addVar(name, type, isVector = false, dim1 = '', dim2 = '') {
+        knownVars.add(name);
+        if (!isVector) {
+          declarations.push({ name, type, kind: 'scalar' });
+          cinItems.push(name);
+          solveParams.push(`${type} ${name}`);
+          solveArgs.push(name);
+        } else if (!dim2) {
+          const vecType = `vector<${type}>`;
+          declarations.push({ name, type, kind: 'vec1d', dim1 });
+          solveParams.push(`const ${vecType}& ${name}`);
+          solveArgs.push(name);
+        } else {
+          const vecType = `vector<vector<${type}>>`;
+          declarations.push({ name, type, kind: 'vec2d', dim1, dim2 });
+          solveParams.push(`const ${vecType}& ${name}`);
+          solveArgs.push(name);
+        }
+      }
 
-      if (isLine1Scalars) {
-        line1Tokens.forEach(tok => {
-          const cleanTok = tok.replace(/[^a-zA-Z0-9_]/g, '');
-          if (!cleanTok) return;
-          const name = cleanTok;
-          vars.push({ name, type: intType });
-          solveArgs.push(`${intType} ${name}`);
-          solveCalls.push(name);
+      let lineIdx = 0;
 
-          const lower = name.toLowerCase();
-          if (lower === 'n') hasN = true;
-          if (lower === 'h') hasH = true;
-          if (lower === 'w') hasW = true;
-          if (lower === 'm') hasM = true;
+      while (lineIdx < lines.length) {
+        const line = lines[lineIdx];
+
+        // 1. Matrix 2D pattern e.g. A_{1,1} ... A_{1,M} or A_{1,1} ... A_{N,M}
+        const matrixMatch = line.match(/([A-Za-z]+)_{\{?1\s*,\s*1\}?}.*?([A-Za-z]+)_{\{?([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\}?/);
+        if (matrixMatch) {
+          const varName = matrixMatch[1];
+          const rowDim = matrixMatch[3];
+          const colDim = matrixMatch[4];
+          const elType = (varName.toUpperCase().startsWith('S') || varName.toUpperCase().startsWith('C')) ? 'string' : intType;
+          addVar(varName, elType, true, rowDim, colDim);
+          lineIdx++;
+          continue;
+        }
+
+        // 2. Pair / Multi-vector repeat lines pattern e.g. u_1 v_1 over M lines
+        const multiEdgeMatch = line.match(/([A-Za-z]+)_{\{?1\}?}\s+([A-Za-z]+)_{\{?1\}?}(\s+([A-Za-z]+)_{\{?1\}?})?/);
+        if (multiEdgeMatch) {
+          // Look ahead to find limit e.g. M or N
+          let limit = 'M';
+          for (let j = lineIdx + 1; j < lines.length; j++) {
+            const limMatch = lines[j].match(/_{\{?([A-Za-z0-9_]+)\}?}/);
+            if (limMatch) {
+              limit = limMatch[1];
+              break;
+            }
+          }
+          const v1 = multiEdgeMatch[1];
+          const v2 = multiEdgeMatch[2];
+          const v3 = multiEdgeMatch[4];
+
+          addVar(v1, intType, true, limit);
+          addVar(v2, intType, true, limit);
+          if (v3) addVar(v3, intType, true, limit);
+
+          lineIdx++;
+          continue;
+        }
+
+        // 3. 1D Vector pattern e.g. A_1 A_2 ... A_N or A_1 ... A_N
+        const vec1dMatch = line.match(/([A-Za-z]+)_{\{?1\}?}.*?([A-Za-z]+)_{\{?([A-Za-z0-9_]+)\}?/);
+        if (vec1dMatch) {
+          const varName = vec1dMatch[1];
+          const dim = vec1dMatch[3];
+          const elType = (varName.toUpperCase().startsWith('S') || varName.toUpperCase().startsWith('C') || varName.toUpperCase().startsWith('T')) ? 'string' : intType;
+          addVar(varName, elType, true, dim);
+          lineIdx++;
+          continue;
+        }
+
+        // 4. Single variable indexed multi-line pattern e.g. S_1 (then S_2 ... S_H)
+        const singleVecMatch = line.match(/^([A-Za-z]+)_{\{?1\}?}$/);
+        if (singleVecMatch) {
+          const varName = singleVecMatch[1];
+          let limit = 'N';
+          for (let j = lineIdx + 1; j < lines.length; j++) {
+            const limMatch = lines[j].match(/_{\{?([A-Za-z0-9_]+)\}?}/);
+            if (limMatch) {
+              limit = limMatch[1];
+              break;
+            }
+          }
+          const elType = (varName.toUpperCase().startsWith('S') || varName.toUpperCase().startsWith('C')) ? 'string' : intType;
+          addVar(varName, elType, true, limit);
+          lineIdx++;
+          continue;
+        }
+
+        // 5. Scalar tokens on a single line e.g. "N K" or "a b c"
+        const tokens = line.split(/\s+/).filter(t => /^[A-Za-z][A-Za-z0-9_]*$/.test(t));
+        if (tokens.length > 0) {
+          tokens.forEach(tok => {
+            if (!knownVars.has(tok)) {
+              const elType = (tok.length === 1 && (tok === 'S' || tok === 'T')) ? 'string' : intType;
+              addVar(tok, elType, false);
+            }
+          });
+        }
+
+        lineIdx++;
+      }
+
+      return generateCppTemplate(declarations, cinItems, solveParams, solveArgs);
+    }
+
+    function generateEmptyTemplate() {
+      return `#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+
+using namespace std;
+
+void solve() {
+    // TODO: 解法をここに実装
+}
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    solve();
+
+    return 0;
+}`;
+    }
+
+    function generateCppTemplate(declarations, cinItems, solveParams, solveArgs) {
+      const declLines = [];
+      const readLines = [];
+
+      // Group scalars by type
+      const scalarsByType = {};
+      declarations.filter(d => d.kind === 'scalar').forEach(d => {
+        if (!scalarsByType[d.type]) scalarsByType[d.type] = [];
+        scalarsByType[d.type].push(d.name);
+      });
+
+      Object.keys(scalarsByType).forEach(type => {
+        declLines.push(`    ${type} ${scalarsByType[type].join(', ')};`);
+      });
+
+      if (cinItems.length > 0) {
+        readLines.push(`    cin >> ${cinItems.join(' >> ')};`);
+      }
+
+      // Handle vectors
+      declarations.filter(d => d.kind !== 'scalar').forEach(d => {
+        if (d.kind === 'vec1d') {
+          declLines.push(`    vector<${d.type}> ${d.name}(${d.dim1});`);
+          readLines.push(`    for (int i = 0; i < ${d.dim1}; ++i) {\n        cin >> ${d.name}[i];\n    }`);
+        } else if (d.kind === 'vec2d') {
+          declLines.push(`    vector<vector<${d.type}>> ${d.name}(${d.dim1}, vector<${d.type}>(${d.dim2}));`);
+          readLines.push(`    for (int i = 0; i < ${d.dim1}; ++i) {\n        for (int j = 0; j < ${d.dim2}; ++j) {\n            cin >> ${d.name}[i][j];\n        }\n    }`);
+        }
+      });
+
+      // Group multi 1D vectors reading if dimensions match (e.g., u[i], v[i])
+      const vec1ds = declarations.filter(d => d.kind === 'vec1d');
+      if (vec1ds.length >= 2) {
+        const sameDimGroup = {};
+        vec1ds.forEach(v => {
+          if (!sameDimGroup[v.dim1]) sameDimGroup[v.dim1] = [];
+          sameDimGroup[v.dim1].push(v.name);
+        });
+
+        // Optimize reading loops for paired vectors like u_i, v_i
+        Object.keys(sameDimGroup).forEach(dim => {
+          const names = sameDimGroup[dim];
+          if (names.length >= 2) {
+            // Remove previous separate loop lines and combine
+            const removeIndices = [];
+            readLines.forEach((rl, idx) => {
+              if (names.some(n => rl.includes(`cin >> ${n}[i]`))) {
+                removeIndices.push(idx);
+              }
+            });
+            if (removeIndices.length === names.length) {
+              removeIndices.reverse().forEach(idx => readLines.splice(idx, 1));
+              const cinStr = names.map(n => `${n}[i]`).join(' >> ');
+              readLines.push(`    for (int i = 0; i < ${dim}; ++i) {\n        cin >> ${cinStr};\n    }`);
+            }
+          }
         });
       }
 
-      // Read scalar line
-      if (vars.length > 0) {
-        const names = vars.map(v => v.name).join(' >> ');
-        readLogic.push(`if (!(cin >> ${names})) return 0;`);
-      }
-
-      // Line 2 & beyond parser
-      if (lines.length > 1) {
-        const line2 = lines[1];
-
-        // 1D Array pattern: A_1 A_2 ... A_N or A_1 ... A_N
-        if (line2.includes('_') && (line2.includes('...') || line2.includes('‥') || line2.includes('…') || lines.length === 2)) {
-          const varMatch = line2.match(/([a-zA-Z0-9]+)_/);
-          const varName = varMatch ? varMatch[1] : 'A';
-          const sizeVar = hasN ? (line1Tokens.find(t => t.toLowerCase() === 'n') || 'N') : 'N';
-
-          solveArgs.push(`const vector<${intType}>& ${varName}`);
-          readLogic.push(`vector<${intType}> ${varName}(${sizeVar});`);
-          readLogic.push(`for (int i = 0; i < ${sizeVar}; ++i) cin >> ${varName}[i];`);
-          solveCalls.push(varName);
-        }
-        // Grid String pattern: S_1 ... S_H
-        else if (hasH && (line2.startsWith('S_') || line2.toLowerCase().startsWith('s_'))) {
-          const hVar = line1Tokens.find(t => t.toLowerCase() === 'h') || 'H';
-          solveArgs.push(`const vector<string>& S`);
-          readLogic.push(`vector<string> S(${hVar});`);
-          readLogic.push(`for (int i = 0; i < ${hVar}; ++i) cin >> S[i];`);
-          solveCalls.push('S');
-        }
-        // Graph / Edges pattern: u_1 v_1 or u_i v_i
-        else if ((hasM || hasN) && (line2.includes('u_') || line2.includes('v_') || line2.includes('u') && line2.includes('v'))) {
-          const mVar = hasM ? (line1Tokens.find(t => t.toLowerCase() === 'm') || 'M') : 'M';
-          solveArgs.push(`const vector<pair<${intType}, ${intType}>>& edges`);
-          readLogic.push(`vector<pair<${intType}, ${intType}>> edges(${mVar});`);
-          readLogic.push(`for (int i = 0; i < ${mVar}; ++i) {`);
-          readLogic.push(`    cin >> edges[i].first >> edges[i].second;`);
-          readLogic.push(`}`);
-          solveCalls.push('edges');
-        }
-      }
-
-      return generateCppCode(solveArgs, readLogic, solveCalls, intType);
-    }
-
-    function generateCppCode(solveArgs, readLogic, solveCalls, intType) {
-      const argsStr = solveArgs.join(', ');
-      const callStr = solveCalls.join(', ');
+      const paramsStr = solveParams.length > 0 ? solveParams.join(', ') : '';
+      const argsStr = solveArgs.length > 0 ? solveArgs.join(', ') : '';
 
       return `#include <iostream>
 #include <vector>
@@ -1843,154 +1997,90 @@ button.active, button.is-active, button.selected, button.is-selected, button[ari
 
 using namespace std;
 
-void solve(${argsStr}) {
-    // TODO: 解法を実装
+void solve(${paramsStr}) {
+    // TODO: 解法をここに実装
 }
 
 int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
 
-    ${readLogic.join('\n    ')}
+${declLines.join('\n')}
 
-    solve(${callStr});
+${readLines.join('\n')}
+
+    solve(${argsStr});
 
     return 0;
 }`;
     }
 
     function highlightCpp(code) {
-      const escape = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const esc = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       
-      const keywords = ['#include', 'using', 'namespace', 'void', 'int', 'return', 'for', 'if', 'const', 'struct'];
-      const types = ['long long', 'vector', 'string', 'pair', 'bool', 'char', 'double'];
-
-      let lines = escape(code).split('\n');
-      
-      return lines.map(line => {
-        // Comments
-        if (line.trim().startsWith('//')) {
-          return `<span class="cm">${line}</span>`;
-        }
-
-        // Keywords
-        keywords.forEach(kw => {
-          const re = new RegExp(`\\b(${kw})\\b`, 'g');
-          line = line.replace(re, '<span class="kw">$1</span>');
-        });
-
-        // Types
-        types.forEach(t => {
-          const re = new RegExp(`\\b(${t})\\b`, 'g');
-          line = line.replace(re, '<span class="type">$1</span>');
-        });
-
-        // Numbers
-        line = line.replace(/\b(\d+)\b/g, '<span class="num">$1</span>');
-
-        // Headers
-        line = line.replace(/(&lt;[a-zA-Z0-9_.]+&gt;)/g, '<span class="str">$1</span>');
-
-        // Function definitions/calls
-        line = line.replace(/\b(solve|main)\b(?=\()/g, '<span class="fn">$1</span>');
-
-        return line;
-      }).join('\n');
+      return esc
+        .replace(/(\/\/.+$)/gm, '<span class="cm">$1</span>')
+        .replace(/(#include\s+&lt;[^&]+&gt;)/g, '<span class="cm">$1</span>')
+        .replace(/\b(using|namespace|void|int|main|return|for|if|else|while|const)\b/g, '<span class="kw">$1</span>')
+        .replace(/\b(vector|string|long long)\b/g, '<span class="type">$1</span>')
+        .replace(/\b(solve|cin|tie|sync_with_stdio)\b/g, '<span class="fn">$1</span>')
+        .replace(/\b(\d+)\b/g, '<span class="num">$1</span>');
     }
 
-    // Dynamic UI Renderer
     function updateViz() {
-      const rawCode = parseInput(state.rawText, state.useLongLong);
-      const highlighted = highlightCpp(rawCode);
-      document.getElementById('codeOutput').innerHTML = highlighted;
+      try {
+        const code = parseAtCoderInput(state.rawInput, state.intType);
+        state.generatedCode = code;
+        
+        const outputEl = document.getElementById('code-output');
+        if (outputEl) outputEl.innerHTML = highlightCpp(code);
 
-      // Update switch visual state
-      const switchEl = document.getElementById('typeSwitch');
-      if (state.useLongLong) {
-        switchEl.classList.add('is-active');
-      } else {
-        switchEl.classList.remove('is-active');
+        const statusEl = document.getElementById('parse-status');
+        if (state.rawInput.trim()) {
+          if (statusEl) statusEl.textContent = 'パース完了';
+          statusEl.style.color = getCssVar('--positive');
+        } else {
+          if (statusEl) statusEl.textContent = 'デフォルトテンプレート表示中';
+          statusEl.style.color = getCssVar('--on-surface-variant');
+        }
+      } catch (err) {
+        console.error('Parse error:', err);
       }
     }
 
-    // Event Bindings
-    document.addEventListener('DOMContentLoaded', () => {
-      const inputEl = document.getElementById('formatInput');
-      const switchEl = document.getElementById('typeSwitch');
-      const copyBtn = document.getElementById('copyBtn');
-      const toastEl = document.getElementById('toast');
-      const chipBtns = document.querySelectorAll('.preset-group .lumi-chip');
+    function copyCode() {
+      if (!state.generatedCode) return;
+      navigator.clipboard.writeText(state.generatedCode).then(() => {
+        const btn = document.getElementById('copy-btn');
+        const toast = document.getElementById('copy-toast');
+        
+        btn.classList.add('copied');
+        if (btn) btn.textContent = 'コピー完了！';
+        toast.classList.add('show');
 
-      // Initial text setup
-      inputEl.value = state.rawText;
-
-      inputEl.addEventListener('input', (e) => {
-        state.rawText = e.target.value;
-        // Clear active chip preset styling if custom text is typed
-        chipBtns.forEach(btn => btn.classList.remove('is-active'));
-        updateViz();
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          if (btn) btn.textContent = 'コードをコピー';
+          toast.classList.remove('show');
+        }, 1800);
+      }).catch(err => {
+        console.error('Copy failed:', err);
       });
+    }
 
-      // Preset click handler
-      chipBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          chipBtns.forEach(b => b.classList.remove('is-active'));
-          btn.classList.add('is-active');
-          const pKey = btn.dataset.preset;
-          state.preset = pKey;
-          state.rawText = PRESETS[pKey] || '';
-          inputEl.value = state.rawText;
-          updateViz();
-        });
-      });
+    // Default Initialization
+    applyPreset('array1d');
 
-      // Toggle Switch handler
-      switchEl.addEventListener('click', () => {
-        state.useLongLong = !state.useLongLong;
-        updateViz();
-      });
-
-      switchEl.addEventListener('keydown', (e) => {
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          state.useLongLong = !state.useLongLong;
-          updateViz();
-        }
-      });
-
-      // Copy Button handler
-      copyBtn.addEventListener('click', () => {
-        const rawCode = parseInput(state.rawText, state.useLongLong);
-        navigator.clipboard.writeText(rawCode).then(() => {
-          toastEl.classList.add('show');
-          if (copyBtn) copyBtn.textContent = 'Copied!';
-          setTimeout(() => {
-            toastEl.classList.remove('show');
-            if (copyBtn) copyBtn.textContent = 'コードをコピー';
-          }, 1800);
-        }).catch(err => {
-          console.error('Copy failed:', err);
-        });
-      });
-
-      // First-frame render
-      updateViz();
-    });
-
-    // Theme & Resize Sync Architecture
-    const applyTheme = t => {
-      document.documentElement.setAttribute('data-theme', t);
-      if (typeof updateViz === 'function') updateViz();
+    // Theme listener & Resizer
+    const applyTheme = t => { 
+      document.documentElement.setAttribute('data-theme', t); 
+      updateViz(); 
     };
-
     if (!document.documentElement.hasAttribute('data-theme') && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
       applyTheme('dark');
     }
-
-    window.addEventListener('message', e => {
-      if (e.data?.type === 'set-theme' || e.data?.type === 'APPLY_THEME') {
-        applyTheme(e.data.theme);
-      }
+    window.addEventListener('message', e => { 
+      if (e.data?.type === 'set-theme' || e.data?.type === 'APPLY_THEME') applyTheme(e.data.theme); 
     });
 
     (function autoResize() {
@@ -1998,7 +2088,7 @@ int main() {
         const c = document.querySelector('.widget-container') || document.body;
         if (!c) return;
         const h = Math.ceil(Math.max(c.getBoundingClientRect().bottom, c.scrollHeight));
-        window.parent.postMessage({ type: 'widget-resize', height: h }, '*');
+        window.parent.postMessage({type: 'widget-resize', height: h}, '*');
       }
       window.addEventListener('load', () => setTimeout(notifyHeight, 120));
       new ResizeObserver(() => notifyHeight()).observe(document.querySelector('.widget-container') || document.body);
