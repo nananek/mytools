@@ -1,0 +1,1114 @@
+<!doctype html>
+<!-- 単一ファイル版。生成元: index.html + dsp.js + app.js -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heart Sound Lab</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #151a21;
+    --line: #242c37;
+    --txt: #d8dee8;
+    --dim: #8b97a8;
+    --accent: #58c7a1;
+    --accent2: #ffb454;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--txt);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    min-width: 320px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    background: #11151b;
+  }
+  h1 {
+    margin: 0;
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  h1 span { color: var(--accent); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+  button, select {
+    background: #1b222c;
+    color: var(--txt);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  button:hover, select:hover { border-color: #3c4a5c; }
+  button:active { transform: translateY(1px); }
+  #playBtn { min-width: 82px; border-color: var(--accent); color: var(--accent); }
+  main {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+  #controls {
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: #2b3543 transparent;
+  }
+  .group {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+  }
+  .group h2 {
+    margin: 0 0 6px;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1px 8px;
+    margin-bottom: 5px;
+  }
+  .row label {
+    color: var(--dim);
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row output {
+    color: var(--accent);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .row input[type="range"] {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--accent);
+  }
+  .row input[type="number"],
+  .row select {
+    grid-column: 1 / -1;
+    width: 100%;
+    background: #10151c;
+    color: var(--txt);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 4px 6px;
+    font: inherit;
+    font-size: 12px;
+  }
+  .viz {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .panel {
+    min-width: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel h2 {
+    margin: 0 0 6px;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    border-radius: 6px;
+    background: #0b0e12;
+  }
+  #wave { height: clamp(130px, 26vh, 240px); }
+  #spec { height: clamp(110px, 21vh, 200px); }
+  #status {
+    color: var(--dim);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    padding: 0 2px 2px;
+    min-height: 1.4em;
+  }
+  @media (max-width: 860px) {
+    body { height: auto; overflow: auto; }
+    main { grid-template-columns: 1fr; padding: 10px; }
+    #controls { overflow: visible; max-height: none; padding-right: 0; }
+    .toolbar { margin-left: 0; width: 100%; }
+    #wave { height: 150px; }
+    #spec { height: 130px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Heart <span>Sound</span> Lab</h1>
+  <div class="toolbar">
+    <button id="playBtn" type="button">▶ 再生</button>
+    <select id="presetSel" aria-label="プリセット"></select>
+    <button id="seedBtn" type="button">シード乱数</button>
+    <button id="wavBtn" type="button">WAV 書き出し</button>
+    <button id="urlBtn" type="button">設定 URL コピー</button>
+  </div>
+</header>
+
+<main>
+  <section id="controls" aria-label="パラメータ"></section>
+  <section class="viz">
+    <div class="panel">
+      <h2>波形(直近 3 秒)</h2>
+      <canvas id="wave"></canvas>
+    </div>
+    <div class="panel">
+      <h2>スペクトル</h2>
+      <canvas id="spec"></canvas>
+    </div>
+    <div id="status" role="status"></div>
+  </section>
+</main>
+
+<script>
+/* Heart Sound Lab - pure DSP, DOM free (UMD) */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.HeartDSP = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const TAU = Math.PI * 2;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const dbToAmp = (db) => Math.pow(10, db / 20);
+
+  const DEFAULT_PARAMS = {
+    bpm: 65, hrvDepth: 2.5, fResp: 0.25, respDepth: 10, seed: 12345,
+    s1Amp: 1, s1Freq: 48, s1Dur: 0.11, s1Split: 22,
+    s2Amp: 0.8, s2Freq: 58, s2Dur: 0.09, s2Split: 20,
+    s3Amp: 0, s4Amp: 0,
+    murmurAmp: 0, murmurPhase: 'systolic', murmurFreq: 350,
+    res1F: 38, res1Q: 1.4, res2F: 95, res2Q: 2.0, res3F: 210, res3Q: 2.8,
+    lowCut: 25, highCut: 600, micType: 'contact',
+    noiseFloor: -55, lungNoise: 0.06, room: 0.04,
+    duration: 12, gain: 0,
+  };
+
+  const PRESETS = {
+    normal: {},
+    athlete: { bpm: 48, hrvDepth: 4, respDepth: 14, s3Amp: 0.18, s1Amp: 1.05 },
+    tachycardia: { bpm: 128, hrvDepth: 1, s1Amp: 0.9, s2Amp: 0.7, s1Dur: 0.09 },
+    systolicMurmur: { bpm: 76, s1Amp: 1.1, murmurAmp: 0.35, murmurPhase: 'systolic', murmurFreq: 380 },
+    child: { bpm: 104, hrvDepth: 3, respDepth: 14, s1Freq: 68, s2Freq: 80, s1Dur: 0.08, s2Dur: 0.07 },
+    contactClear: { noiseFloor: -62, lungNoise: 0.02, s1Amp: 1.25 },
+  };
+
+  // deterministic PRNG (mulberry32)
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // RBJ cookbook biquad, normalised by a0
+  function biquad(type, f, q, gainDb, fs) {
+    const w = TAU * clamp(f, 8, fs * 0.45) / fs;
+    const c = Math.cos(w), s = Math.sin(w);
+    let b0, b1, b2, a0, a1, a2;
+    if (type === 'lp' || type === 'hp' || type === 'bp') {
+      const alpha = s / (2 * q);
+      if (type === 'lp') { b0 = (1 - c) / 2; b1 = 1 - c; b2 = b0; }
+      else if (type === 'hp') { b0 = (1 + c) / 2; b1 = -(1 + c); b2 = b0; }
+      else { b0 = alpha; b1 = 0; b2 = -alpha; }
+      a0 = 1 + alpha; a1 = -2 * c; a2 = 1 - alpha;
+    } else if (type === 'peak') {
+      const A = Math.pow(10, gainDb / 40);
+      const alpha = s / (2 * q);
+      b0 = 1 + alpha * A; b1 = -2 * c; b2 = 1 - alpha * A;
+      a0 = 1 + alpha / A; a1 = -2 * c; a2 = 1 - alpha / A;
+    } else { // low shelf, S = 1
+      const A = Math.pow(10, gainDb / 40);
+      const alpha = (s / 2) * Math.SQRT2;
+      const sq = 2 * Math.sqrt(A) * alpha;
+      b0 = A * ((A + 1) - (A - 1) * c + sq);
+      b1 = 2 * A * ((A - 1) - (A + 1) * c);
+      b2 = A * ((A + 1) - (A - 1) * c - sq);
+      a0 = (A + 1) + (A - 1) * c + sq;
+      a1 = -2 * ((A - 1) + (A + 1) * c);
+      a2 = (A + 1) + (A - 1) * c - sq;
+    }
+    return { b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: a1 / a0, a2: a2 / a0 };
+  }
+
+  const newState = () => ({ x1: 0, x2: 0, y1: 0, y2: 0 });
+
+  function filterChain(specs, fs) {
+    return { c: specs.map((s) => biquad(s[0], s[1], s[2], s[3], fs)), s: specs.map(newState) };
+  }
+
+  function runChain(ch, x) {
+    for (let i = 0; i < ch.c.length; i++) {
+      const c = ch.c[i], st = ch.s[i];
+      const y = c.b0 * x + c.b1 * st.x1 + c.b2 * st.x2 - c.a1 * st.y1 - c.a2 * st.y2;
+      st.x2 = st.x1; st.x1 = x; st.y2 = st.y1; st.y1 = y; x = y;
+    }
+    return x;
+  }
+
+  function addAt(buf, sig, start) {
+    const s = Math.round(start);
+    for (let i = 0; i < sig.length; i++) {
+      const j = s + i;
+      if (j >= buf.length) break;
+      if (j >= 0) buf[j] += sig[i];
+    }
+  }
+
+  // descending-chirp damped valve component
+  function chirp(f0, dur, fs, rng, amp) {
+    const n = Math.max(1, Math.ceil(dur * 2.5 * fs));
+    const out = new Float32Array(n);
+    const level = amp === undefined ? 1 : amp;
+    const fStart = f0 * 1.6, fEnd = f0 * 0.8, tau = dur / 4;
+    const bp = biquad('bp', f0, 1.2, 0, fs), st = newState();
+    let phase = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / fs;
+      const f = fEnd + (fStart - fEnd) * Math.exp(-t / 0.03);
+      phase += TAU * f / fs;
+      const env = (1 - Math.exp(-t / 0.0015)) * Math.exp(-t / tau);
+      const white = rng() * 2 - 1;
+      const y = bp.b0 * white + bp.b1 * st.x1 + bp.b2 * st.x2 - bp.a1 * st.y1 - bp.a2 * st.y2;
+      st.x2 = st.x1; st.x1 = white; st.y2 = st.y1; st.y1 = y;
+      const tone = 0.82 * Math.sin(phase) + 0.18 * Math.sin(2 * phase);
+      out[i] = level * env * (tone + 0.12 * y);
+    }
+    return out;
+  }
+
+  function pink(rng, n, amp) {
+    const out = new Float32Array(n);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < n; i++) {
+      const w = rng() * 2 - 1;
+      b0 = 0.99886 * b0 + w * 0.0555179;
+      b1 = 0.99332 * b1 + w * 0.0750759;
+      b2 = 0.969 * b2 + w * 0.153852;
+      b3 = 0.8665 * b3 + w * 0.3104856;
+      b4 = 0.55 * b4 + w * 0.5329522;
+      b5 = -0.7616 * b5 - w * 0.016898;
+      out[i] = amp * (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
+      b6 = w * 0.115926;
+    }
+    return out;
+  }
+
+  // iterative radix-2 FFT
+  function fft(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) {
+        let t = re[i]; re[i] = re[j]; re[j] = t;
+        t = im[i]; im[i] = im[j]; im[j] = t;
+      }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = -TAU / len, wr = Math.cos(ang), wi = Math.sin(ang);
+      for (let i = 0; i < n; i += len) {
+        let cr = 1, ci = 0;
+        for (let j = 0; j < len / 2; j++) {
+          const ur = re[i + j], ui = im[i + j];
+          const vr = re[i + j + len / 2] * cr - im[i + j + len / 2] * ci;
+          const vi = re[i + j + len / 2] * ci + im[i + j + len / 2] * cr;
+          re[i + j] = ur + vr; im[i + j] = ui + vi;
+          re[i + j + len / 2] = ur - vr; im[i + j + len / 2] = ui - vi;
+          const ncr = cr * wr - ci * wi;
+          ci = cr * wi + ci * wr; cr = ncr;
+        }
+      }
+    }
+  }
+
+  function analyze(data, sampleRate) {
+    let peak = 0, sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = data[i], a = Math.abs(v);
+      if (a > peak) peak = a;
+      sum += v * v;
+    }
+    const rms = data.length ? Math.sqrt(sum / data.length) : 0;
+    let n = 1;
+    while (n * 2 <= Math.min(16384, data.length)) n *= 2;
+    if (n < 16) return { peak, rms, spectrum: new Float32Array(0), freqs: new Float32Array(0) };
+
+    // pick the most energetic window so a quiet diastolic stretch is avoided
+    let best = 0, bestE = -1;
+    for (let s = 0; s + n <= data.length; s += n / 2) {
+      let e = 0;
+      for (let i = s; i < s + n; i += 4) e += data[i] * data[i];
+      if (e > bestE) { bestE = e; best = s; }
+    }
+    const re = new Float64Array(n), im = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const w = 0.5 - 0.5 * Math.cos(TAU * i / (n - 1));
+      re[i] = data[best + i] * w;
+    }
+    fft(re, im);
+    const half = n / 2;
+    const spectrum = new Float32Array(half), freqs = new Float32Array(half);
+    for (let i = 0; i < half; i++) {
+      spectrum[i] = (2 * Math.hypot(re[i], im[i])) / n;
+      freqs[i] = (i * sampleRate) / n;
+    }
+    return { peak, rms, spectrum, freqs };
+  }
+
+  function render(params, opts) {
+    opts = opts || {};
+    const p = Object.assign({}, DEFAULT_PARAMS, params || {});
+    const fs = opts.sampleRate || 44100;
+    const loop = !!opts.loop;
+    const duration = clamp(+p.duration || 12, 2, 30);
+    const rng = mulberry32((+p.seed | 0) ^ 0x9e3779b9);
+    const phase0 = rng() * TAU;
+    const jitterPct = 0.003 + 0.007 * rng();
+    let fResp = clamp(+p.fResp, 0.15, 0.45);
+    let meanRR = 60 / clamp(+p.bpm, 40, 180);
+    let T = duration, N = 0;
+    if (loop) {
+      N = Math.max(1, Math.round(duration / meanRR));
+      meanRR = duration / N;
+      fResp = Math.max(1, Math.round(duration * fResp)) / duration;
+    }
+    const L = Math.max(1, Math.round(T * fs));
+    const xf = loop ? Math.round(0.03 * fs) : 0;
+    const total = L + xf;
+    const beats = [];
+    let t = 0;
+
+    const addBeat = (time) => {
+      const mod = 1 + (p.hrvDepth / 100) * Math.sin(TAU * fResp * time + phase0);
+      const rr = clamp(meanRR * mod + meanRR * jitterPct * (rng() * 2 - 1), 0.2, 3);
+      const si = clamp(0.35 * Math.sqrt(rr), 0.22, 0.36);
+      beats.push({ t1: time, t2: time + si, rr, si });
+      return rr;
+    };
+
+    if (loop) {
+      // place the seam in diastole: the first beat starts after a short
+      // offset and the beats stay exactly meanRR apart, so the gap from the
+      // last beat to the next loop's first beat is meanRR as well
+      const offset = Math.min(0.35, meanRR * 0.45);
+      for (let k = 0; k < N; k++) addBeat(offset + k * meanRR);
+    } else {
+      while (t < T - 1e-9) t += addBeat(t);
+    }
+
+    // S1 / S2 excitation
+    const exc = new Float32Array(total);
+    for (const b of beats) {
+      const insp = 0.5 * (1 + Math.sin(TAU * fResp * b.t1 + phase0));
+      const s1split = (p.s1Split / 1000) * (1 + 0.3 * insp);
+      addAt(exc, chirp(p.s1Freq, p.s1Dur, fs, rng, p.s1Amp), b.t1 * fs);
+      addAt(exc, chirp(p.s1Freq * 1.08, p.s1Dur * 0.85, fs, rng, p.s1Amp * 0.65), (b.t1 + s1split) * fs);
+      const s2split = clamp(p.s2Split / 1000 + Math.min(0.025, (p.s2Split / 1000) * 1.5) * insp, 0, 0.085);
+      addAt(exc, chirp(p.s2Freq, p.s2Dur, fs, rng, p.s2Amp), b.t2 * fs);
+      addAt(exc, chirp(p.s2Freq * 0.92, p.s2Dur, fs, rng, p.s2Amp * 0.75), (b.t2 + s2split) * fs);
+    }
+
+    // S3 / S4 and murmur live in a separate bus
+    const extra = new Float32Array(total);
+    for (const b of beats) {
+      if (p.s3Amp > 0) addAt(extra, chirp(32, 0.13, fs, rng, p.s3Amp), (b.t2 + 0.14) * fs);
+      if (p.s4Amp > 0 && b.t1 - 0.1 >= 0) {
+        addAt(extra, chirp(27, 0.11, fs, rng, p.s4Amp), (b.t1 - 0.1) * fs);
+      }
+    }
+    if (p.murmurAmp > 0) {
+      const bp = biquad('bp', clamp(+p.murmurFreq, 200, 700), 1.5, 0, fs), st = newState();
+      for (let k = 0; k < beats.length; k++) {
+        const beat = beats[k];
+        const a = p.murmurPhase === 'diastolic' ? beat.t2 : beat.t1;
+        const z = p.murmurPhase === 'diastolic'
+          ? (k + 1 < beats.length ? beats[k + 1].t1 : T)
+          : beat.t2;
+        if (z <= a) continue;
+        const i0 = Math.max(0, Math.floor(a * fs)), i1 = Math.min(total, Math.ceil(z * fs));
+        for (let i = i0; i < i1; i++) {
+          const u = (i / fs - a) / (z - a);
+          const white = rng() * 2 - 1;
+          const y = bp.b0 * white + bp.b1 * st.x1 + bp.b2 * st.x2 - bp.a1 * st.y1 - bp.a2 * st.y2;
+          st.x2 = st.x1; st.x1 = white; st.y2 = st.y1; st.y1 = y;
+          extra[i] += 4 * u * (1 - u) * y * p.murmurAmp * 0.5;
+        }
+      }
+    }
+
+    // chest wall + microphone colouring
+    const hc = p.micType === 'contact' ? Math.max(+p.highCut, 1000) : +p.highCut;
+    const specs = [
+      ['hp', +p.lowCut, 0.707, 0],
+      ['peak', +p.res1F, +p.res1Q, 6],
+      ['peak', +p.res2F, +p.res2Q, 4],
+      ['peak', +p.res3F, +p.res3Q, 2],
+      ['lp', hc, 0.707, 0],
+    ];
+    if (p.micType === 'contact') {
+      specs.push(['lowshelf', 60, 1, 6], ['peak', 90, 1, 3]);
+    } else if (p.micType === 'bell') {
+      specs.push(['lp', 300, 0.707, 0], ['peak', 50, 0.9, 6]);
+    }
+    const chain = filterChain(specs, fs), chain2 = filterChain(specs, fs);
+    for (let i = 0; i < total; i++) {
+      exc[i] = runChain(chain, exc[i]);
+      extra[i] = runChain(chain2, extra[i]);
+    }
+
+    // respiratory amplitude modulation, then add the extra bus
+    for (let i = 0; i < total; i++) {
+      const tt = i / fs;
+      exc[i] *= 1 + (p.respDepth / 100) * Math.sin(TAU * fResp * tt + phase0);
+      exc[i] += extra[i];
+    }
+
+    // pink floor + lung noise
+    const floor = pink(rng, total, dbToAmp(clamp(+p.noiseFloor, -80, -20)));
+    for (let i = 0; i < total; i++) exc[i] += floor[i];
+    if (p.lungNoise > 0) {
+      const hp = biquad('hp', 100, 0.707, 0, fs), lp = biquad('lp', 400, 0.707, 0, fs);
+      const s1 = newState(), s2 = newState();
+      const eF = 0.2 + 0.2 * rng(), eP = rng() * TAU;
+      for (let i = 0; i < total; i++) {
+        const white = rng() * 2 - 1;
+        let y = hp.b0 * white + hp.b1 * s1.x1 + hp.b2 * s1.x2 - hp.a1 * s1.y1 - hp.a2 * s1.y2;
+        s1.x2 = s1.x1; s1.x1 = white; s1.y2 = s1.y1; s1.y1 = y;
+        const y2 = lp.b0 * y + lp.b1 * s2.x1 + lp.b2 * s2.x2 - lp.a1 * s2.y1 - lp.a2 * s2.y2;
+        s2.x2 = s2.x1; s2.x1 = y; s2.y2 = s2.y1; s2.y1 = y2;
+        const env = 0.55 + 0.45 * Math.sin(TAU * eF * i / fs + eP);
+        exc[i] += y2 * env * p.lungNoise * 0.35;
+      }
+    }
+
+    // short early reflections, no feedback
+    if (p.room > 0) {
+      const src = Float32Array.from(exc);
+      const taps = [0.02 + rng() * 0.005, 0.026 + rng() * 0.005, 0.031 + rng() * 0.004];
+      const gains = [0.5, 0.3, 0.18];
+      for (let k = 0; k < taps.length; k++) {
+        const d = Math.round(taps[k] * fs);
+        for (let i = d; i < total; i++) exc[i] += src[i - d] * p.room * gains[k];
+      }
+    }
+
+    // normalise to -1 dBFS, apply output gain, soft clip
+    let maxAbs = 0;
+    for (let i = 0; i < total; i++) {
+      const a = Math.abs(exc[i]);
+      if (a > maxAbs) maxAbs = a;
+    }
+    const norm = maxAbs > 0 ? 0.891 / maxAbs : 1;
+    const gain = dbToAmp(clamp(+p.gain, -24, 6));
+    const th = 0.9;
+    for (let i = 0; i < total; i++) {
+      const v = exc[i] * norm * gain;
+      const a = Math.abs(v);
+      exc[i] = a <= th
+        ? v
+        : Math.sign(v) * (th + (1 - th) * Math.tanh((a - th) / (1 - th)));
+    }
+
+    // equal-power crossfade of the wrap region into the head
+    let out = exc;
+    if (loop) {
+      out = exc.slice(0, L);
+      for (let i = 0; i < xf && i < L; i++) {
+        const u = (i + 0.5) / xf;
+        out[i] = exc[i] * Math.sin(u * Math.PI / 2) + exc[L + i] * Math.cos(u * Math.PI / 2);
+      }
+      for (let i = 0; i < out.length; i++) {
+        const v = out[i], a = Math.abs(v);
+        if (a > th) out[i] = Math.sign(v) * (th + (1 - th) * Math.tanh((a - th) / (1 - th)));
+      }
+    }
+    return { data: out, sampleRate: fs, duration: out.length / fs, beats: beats.map((b) => ({ t1: b.t1, t2: b.t2, rr: b.rr })) };
+  }
+
+  function encodeWav(samples, sampleRate) {
+    const n = samples.length;
+    const buf = new ArrayBuffer(44 + n * 2);
+    const view = new DataView(buf);
+    const wstr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+    wstr(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); wstr(8, 'WAVE');
+    wstr(12, 'fmt '); view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    wstr(36, 'data'); view.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) {
+      const v = clamp(samples[i], -1, 1);
+      view.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true);
+    }
+    return buf;
+  }
+
+  return {
+    DEFAULT_PARAMS, PRESETS, render, encodeWav, analyze,
+    _rng: mulberry32, _chirp: chirp,
+  };
+});
+</script>
+<script>
+(function () {
+  'use strict';
+
+  const D = window.HeartDSP;
+  const LS_KEY = 'heart-sound-lab.params.v1';
+  const SR = 48000;
+  const $ = (id) => document.getElementById(id);
+
+  const waveCanvas = $('wave');
+  const specCanvas = $('spec');
+  const statusEl = $('status');
+  const presetSel = $('presetSel');
+  const playBtn = $('playBtn');
+
+  const CONTROLS = [
+    {
+      group: '基本',
+      items: [
+        { k: 'bpm', label: '心拍数', type: 'range', min: 40, max: 180, step: 1, unit: ' bpm' },
+        { k: 'hrvDepth', label: 'HRV 深さ', type: 'range', min: 0, max: 8, step: 0.1, unit: ' %' },
+        { k: 'fResp', label: '呼吸周波数', type: 'range', min: 0.15, max: 0.45, step: 0.01, unit: ' Hz' },
+        { k: 'respDepth', label: '呼吸振幅変調', type: 'range', min: 0, max: 30, step: 1, unit: ' %' },
+        { k: 'seed', label: 'シード', type: 'int', min: 0, max: 999999 },
+      ],
+    },
+    {
+      group: 'S1',
+      items: [
+        { k: 's1Amp', label: '振幅', type: 'range', min: 0, max: 1.5, step: 0.01 },
+        { k: 's1Freq', label: '中心周波数', type: 'range', min: 30, max: 90, step: 1, unit: ' Hz' },
+        { k: 's1Dur', label: '長さ', type: 'range', min: 0.06, max: 0.16, step: 0.005, unit: ' s' },
+        { k: 's1Split', label: 'M1→T1 遅延', type: 'range', min: 0, max: 50, step: 1, unit: ' ms' },
+      ],
+    },
+    {
+      group: 'S2',
+      items: [
+        { k: 's2Amp', label: '振幅', type: 'range', min: 0, max: 1.5, step: 0.01 },
+        { k: 's2Freq', label: '中心周波数', type: 'range', min: 40, max: 100, step: 1, unit: ' Hz' },
+        { k: 's2Dur', label: '長さ', type: 'range', min: 0.05, max: 0.14, step: 0.005, unit: ' s' },
+        { k: 's2Split', label: 'A2→P2 遅延', type: 'range', min: 0, max: 60, step: 1, unit: ' ms' },
+      ],
+    },
+    {
+      group: '付加音',
+      items: [
+        { k: 's3Amp', label: 'S3 振幅', type: 'range', min: 0, max: 0.5, step: 0.01 },
+        { k: 's4Amp', label: 'S4 振幅', type: 'range', min: 0, max: 0.5, step: 0.01 },
+        { k: 'murmurAmp', label: '雑音 振幅', type: 'range', min: 0, max: 1, step: 0.01 },
+        { k: 'murmurFreq', label: '雑音 中心周波数', type: 'range', min: 200, max: 700, step: 5, unit: ' Hz' },
+        { k: 'murmurPhase', label: '雑音の位相', type: 'select', options: [['systolic', '収縮期'], ['diastolic', '拡張期']] },
+      ],
+    },
+    {
+      group: '胸壁・マイク',
+      items: [
+        { k: 'res1F', label: '共振 1 周波数', type: 'range', min: 20, max: 80, step: 1, unit: ' Hz' },
+        { k: 'res1Q', label: '共振 1 Q', type: 'range', min: 0.7, max: 4, step: 0.1 },
+        { k: 'res2F', label: '共振 2 周波数', type: 'range', min: 60, max: 250, step: 1, unit: ' Hz' },
+        { k: 'res2Q', label: '共振 2 Q', type: 'range', min: 0.7, max: 4, step: 0.1 },
+        { k: 'res3F', label: '共振 3 周波数', type: 'range', min: 150, max: 600, step: 1, unit: ' Hz' },
+        { k: 'res3Q', label: '共振 3 Q', type: 'range', min: 0.7, max: 5, step: 0.1 },
+        { k: 'lowCut', label: 'ローハイパス', type: 'range', min: 15, max: 60, step: 1, unit: ' Hz' },
+        { k: 'highCut', label: 'ハイカット', type: 'range', min: 300, max: 2000, step: 10, unit: ' Hz' },
+        { k: 'micType', label: 'マイク', type: 'select', options: [['contact', '接触マイク'], ['diaphragm', '膜型'], ['bell', 'ベル型']] },
+      ],
+    },
+    {
+      group: 'ノイズ',
+      items: [
+        { k: 'noiseFloor', label: 'ノイズフロア', type: 'range', min: -80, max: -20, step: 1, unit: ' dBFS' },
+        { k: 'lungNoise', label: '肺音', type: 'range', min: 0, max: 1, step: 0.01 },
+        { k: 'room', label: '室内反射', type: 'range', min: 0, max: 1, step: 0.01 },
+      ],
+    },
+    {
+      group: '出力',
+      items: [
+        { k: 'duration', label: '長さ', type: 'range', min: 2, max: 30, step: 0.5, unit: ' s' },
+        { k: 'gain', label: 'ゲイン', type: 'range', min: -24, max: 6, step: 1, unit: ' dB' },
+      ],
+    },
+  ];
+
+  const ITEMS = {};
+  for (const g of CONTROLS) for (const it of g.items) ITEMS[it.k] = it;
+
+  let params = {};
+  let current = null;
+  let ctx = null, analyser = null, source = null, audioBuffer = null;
+  let isPlaying = false, startTime = 0, playOffset = 0;
+  let renderTimer = null;
+  let flashText = '';
+
+  const inputs = {}, outputs = {};
+
+  function decimals(step) {
+    const s = String(step);
+    const i = s.indexOf('.');
+    return i < 0 ? 0 : s.length - i - 1;
+  }
+
+  function formatValue(it, v) {
+    if (it.type === 'select') {
+      const hit = it.options.find((o) => o[0] === v);
+      return hit ? hit[1] : String(v);
+    }
+    if (it.type === 'int') return String(v | 0) + (it.unit || '');
+    return Number(v).toFixed(decimals(it.step)) + (it.unit || '');
+  }
+
+  function updateValue(it) {
+    if (outputs[it.k]) outputs[it.k].textContent = formatValue(it, params[it.k]);
+  }
+
+  function buildControls() {
+    const host = $('controls');
+    for (const g of CONTROLS) {
+      const sec = document.createElement('section');
+      sec.className = 'group';
+      const h = document.createElement('h2');
+      h.textContent = g.group;
+      sec.appendChild(h);
+
+      for (const it of g.items) {
+        const row = document.createElement('div');
+        row.className = 'row';
+        const lab = document.createElement('label');
+        lab.htmlFor = 'p-' + it.k;
+        lab.textContent = it.label;
+        const out = document.createElement('output');
+        out.id = 'v-' + it.k;
+        row.appendChild(lab);
+        row.appendChild(out);
+
+        let el;
+        if (it.type === 'select') {
+          el = document.createElement('select');
+          for (const opt of it.options) {
+            const o = document.createElement('option');
+            o.value = opt[0];
+            o.textContent = opt[1];
+            el.appendChild(o);
+          }
+        } else {
+          el = document.createElement('input');
+          el.type = it.type === 'int' ? 'number' : 'range';
+          el.min = it.min;
+          el.max = it.max;
+          el.step = it.type === 'int' ? 1 : it.step;
+          if (it.type === 'int') {
+            el.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
+          }
+        }
+        el.id = 'p-' + it.k;
+        el.addEventListener('input', () => {
+          if (it.type === 'select') {
+            params[it.k] = el.value;
+          } else {
+            const raw = el.value;
+            const v = Number(raw);
+            if (raw === '' || !Number.isFinite(v)) return;
+            params[it.k] = v;
+          }
+          updateValue(it);
+          presetSel.value = '';
+          scheduleRender();
+        });
+        row.appendChild(el);
+        sec.appendChild(row);
+        inputs[it.k] = el;
+        outputs[it.k] = out;
+      }
+      host.appendChild(sec);
+    }
+  }
+
+  function syncInputs() {
+    for (const key in inputs) {
+      const it = ITEMS[key];
+      inputs[key].value = params[key];
+      updateValue(it);
+    }
+  }
+
+  function buildPresetSelect() {
+    const labels = {
+      normal: '正常',
+      athlete: '徐脈 + S3',
+      tachycardia: '頻脈',
+      systolicMurmur: '収縮期雑音',
+      child: '子供',
+      contactClear: '接触マイク・クリア',
+    };
+    const custom = document.createElement('option');
+    custom.value = '';
+    custom.textContent = 'カスタム';
+    presetSel.appendChild(custom);
+    for (const k of Object.keys(D.PRESETS)) {
+      const o = document.createElement('option');
+      o.value = k;
+      o.textContent = labels[k] || k;
+      presetSel.appendChild(o);
+    }
+    presetSel.value = 'normal';
+    presetSel.addEventListener('change', () => {
+      const k = presetSel.value;
+      if (!k) return;
+      params = Object.assign({}, D.DEFAULT_PARAMS, D.PRESETS[k], { seed: params.seed });
+      syncInputs();
+      saveParams();
+      doRender();
+    });
+  }
+
+  // --- URL / localStorage -------------------------------------------------
+  function encodeParams(p) {
+    const bytes = new TextEncoder().encode(JSON.stringify(p));
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function decodeParams(s) {
+    let t = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4) t += '=';
+    const b = atob(t);
+    const bytes = Uint8Array.from(b, (c) => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+
+  function loadParams() {
+    let p = Object.assign({}, D.DEFAULT_PARAMS);
+    let restored = false;
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) { p = Object.assign(p, JSON.parse(raw)); restored = true; }
+    } catch (e) { /* ignore */ }
+    try {
+      const q = new URLSearchParams(location.search).get('p');
+      if (q) { p = Object.assign(p, decodeParams(q)); restored = true; }
+    } catch (e) { /* ignore */ }
+    params = p;
+    return restored;
+  }
+
+  function saveParams() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(params)); } catch (e) { /* ignore */ }
+  }
+
+  // --- rendering / playback ----------------------------------------------
+  function currentPos() {
+    if (isPlaying && ctx && current) {
+      const d = current.duration;
+      return ((ctx.currentTime - startTime) % d + d) % d;
+    }
+    return playOffset;
+  }
+
+  function stopSource() {
+    if (source) {
+      try { source.stop(); } catch (e) { /* ignore */ }
+      source.disconnect();
+      source = null;
+    }
+    isPlaying = false;
+  }
+
+  function ensureCtx() {
+    if (ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    ctx = new AC();
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.82;
+    analyser.connect(ctx.destination);
+  }
+
+  function startSource(offset) {
+    if (!ctx || !current) return;
+    stopSource();
+    if (!audioBuffer || audioBuffer.length !== current.data.length || audioBuffer.sampleRate !== current.sampleRate) {
+      audioBuffer = ctx.createBuffer(1, current.data.length, current.sampleRate);
+    }
+    if (audioBuffer.copyToChannel) audioBuffer.copyToChannel(current.data, 0);
+    else audioBuffer.getChannelData(0).set(current.data);
+    source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.loop = true;
+    source.connect(analyser);
+    const off = ((offset % current.duration) + current.duration) % current.duration;
+    source.start(0, off);
+    startTime = ctx.currentTime - off;
+    playOffset = off;
+    isPlaying = true;
+  }
+
+  function play() {
+    ensureCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    startSource(playOffset);
+    updateTransport();
+  }
+
+  function stop() {
+    stopSource();
+    playOffset = 0;
+    updateTransport();
+  }
+
+  function toggle() {
+    if (isPlaying) stop(); else play();
+  }
+
+  function updateTransport() {
+    playBtn.textContent = isPlaying ? '■ 停止' : '▶ 再生';
+  }
+
+  function doRender() {
+    const wasPlaying = isPlaying;
+    const res = D.render(params, { loop: true, sampleRate: SR });
+    const pos = wasPlaying ? currentPos() : playOffset;
+    stopSource();
+    current = res;
+    if (wasPlaying) {
+      if (ctx.state === 'suspended') ctx.resume();
+      startSource(pos % res.duration);
+    }
+    if (playOffset > res.duration) playOffset = 0;
+    updateStatus();
+    updateTransport();
+  }
+
+  function scheduleRender() {
+    saveParams();
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(() => { renderTimer = null; doRender(); }, 120);
+  }
+
+  function updateStatus() {
+    if (flashText) { statusEl.textContent = flashText; return; }
+    if (!current) { statusEl.textContent = ''; return; }
+    statusEl.textContent = current.duration.toFixed(2) + ' s / ' + current.beats.length +
+      ' 拍 / ' + current.sampleRate + ' Hz / seed ' + params.seed;
+  }
+
+  function flash(msg) {
+    flashText = msg;
+    updateStatus();
+    setTimeout(() => { flashText = ''; updateStatus(); }, 1800);
+  }
+
+  // --- export -------------------------------------------------------------
+  function exportWav() {
+    const res = D.render(params, { loop: false, sampleRate: SR });
+    const buf = D.encodeWav(res.data, res.sampleRate);
+    const url = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'heart-sound-' + params.seed + '.wav';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    flash('WAV を書き出しました');
+  }
+
+  function copyUrl() {
+    const base = location.href.split(/[?#]/)[0];
+    const url = base + '?p=' + encodeParams(params);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(
+        () => flash('URL をコピーしました'),
+        () => window.prompt('URL をコピーしてください', url)
+      );
+    } else {
+      window.prompt('URL をコピーしてください', url);
+    }
+  }
+
+  // --- canvas -------------------------------------------------------------
+  function fit(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 320;
+    const h = canvas.clientHeight || 160;
+    const W = Math.round(w * dpr), H = Math.round(h * dpr);
+    if (canvas.width !== W || canvas.height !== H) {
+      canvas.width = W;
+      canvas.height = H;
+    }
+    const g = canvas.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { g: g, w: w, h: h };
+  }
+
+  function drawWave() {
+    const c = fit(waveCanvas), g = c.g, w = c.w, h = c.h;
+    g.fillStyle = '#0b0e12';
+    g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#1b2330';
+    g.beginPath();
+    g.moveTo(0, h / 2);
+    g.lineTo(w, h / 2);
+    g.stroke();
+    if (!current) return;
+
+    const data = current.data, sr = current.sampleRate, len = data.length;
+    const span = Math.min(3, current.duration);
+    const pos = currentPos();
+    const start = isPlaying || playOffset > 0 ? pos - span : 0;
+    const cols = Math.max(1, Math.floor(w));
+
+    g.strokeStyle = '#58c7a1';
+    g.lineWidth = 1;
+    g.beginPath();
+    for (let x = 0; x < cols; x++) {
+      const t0 = start + (span * x) / cols;
+      const count = Math.max(1, Math.floor((span * sr) / cols));
+      const a = Math.floor(t0 * sr);
+      const stride = Math.max(1, Math.floor(count / 16));
+      let mn = 1, mx = -1;
+      for (let j = 0; j < count; j += stride) {
+        const idx = ((a + j) % len + len) % len;
+        const v = data[idx];
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+      }
+      if (mx < mn) { mn = 0; mx = 0; }
+      const y0 = (1 - mx) * 0.5 * h, y1 = (1 - mn) * 0.5 * h;
+      g.moveTo(x + 0.5, y0);
+      g.lineTo(x + 0.5, Math.max(y1, y0 + 0.5));
+    }
+    g.stroke();
+
+    const px = Math.max(0, Math.min(w, ((pos - start) / span) * w));
+    g.strokeStyle = '#ffb454';
+    g.beginPath();
+    g.moveTo(px + 0.5, 0);
+    g.lineTo(px + 0.5, h);
+    g.stroke();
+  }
+
+  function drawSpec() {
+    const c = fit(specCanvas), g = c.g, w = c.w, h = c.h;
+    g.fillStyle = '#0b0e12';
+    g.fillRect(0, 0, w, h);
+    if (!analyser || !ctx) {
+      g.fillStyle = '#5b6678';
+      g.font = '11px ui-monospace, monospace';
+      g.fillText('再生すると表示されます', 10, 20);
+      return;
+    }
+    const bins = new Float32Array(analyser.frequencyBinCount);
+    analyser.getFloatFrequencyData(bins);
+    const nyq = ctx.sampleRate / 2, maxF = 4000;
+    const cols = Math.min(180, Math.max(60, Math.floor(w / 4)));
+    g.fillStyle = '#58c7a1';
+    for (let i = 0; i < cols; i++) {
+      const f0 = (i / cols) * maxF, f1 = ((i + 1) / cols) * maxF;
+      const b0 = Math.floor((f0 / nyq) * bins.length);
+      const b1 = Math.max(b0 + 1, Math.floor((f1 / nyq) * bins.length));
+      let db = -120;
+      for (let b = b0; b < b1 && b < bins.length; b++) if (bins[b] > db) db = bins[b];
+      const v = Math.max(0, Math.min(1, (db + 100) / 80));
+      const bh = Math.max(1, v * h * 0.9);
+      g.fillRect((i / cols) * w + 1, h - bh, Math.max(1, w / cols - 1), bh);
+    }
+    g.fillStyle = '#5b6678';
+    g.font = '10px ui-monospace, monospace';
+    for (const f of [0, 1000, 2000, 3000, 4000]) {
+      const x = (f / maxF) * w;
+      g.fillText(f === 0 ? '0' : f / 1000 + 'k', Math.min(w - 14, x + 2), h - 4);
+    }
+  }
+
+  function frame() {
+    drawWave();
+    drawSpec();
+    requestAnimationFrame(frame);
+  }
+
+  // --- events -------------------------------------------------------------
+  playBtn.addEventListener('click', toggle);
+  $('seedBtn').addEventListener('click', () => {
+    params.seed = Math.floor(Math.random() * 1000000);
+    inputs.seed.value = params.seed;
+    updateValue(ITEMS.seed);
+    presetSel.value = '';
+    scheduleRender();
+  });
+  $('wavBtn').addEventListener('click', exportWav);
+  $('urlBtn').addEventListener('click', copyUrl);
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space') return;
+    const t = e.target;
+    if (t && /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(t.tagName)) return;
+    e.preventDefault();
+    toggle();
+  });
+
+  const restored = loadParams();
+  buildControls();
+  buildPresetSelect();
+  if (restored) presetSel.value = '';
+  syncInputs();
+  doRender();
+  updateTransport();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
